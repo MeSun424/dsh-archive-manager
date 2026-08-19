@@ -1,0 +1,5 @@
+# Independent archive manager. Removing this row disables both the Host
+# service and the browser contribution without changing Harness core rows.
+- insert:
+    - id: archive-manager-service
+      name: dsh-archive-manager

@@ -1,0 +1,85 @@
+# DSH 归档管理插件
+
+[English](README.md) | 中文
+
+DSH 归档管理插件为 DeepSeek Harness Web 增加完整的归档管理页面。你可以在一个位置按项目查看已归档聊天、搜索和筛选内容、恢复聊天，或永久删除本地会话文件。
+
+![DSH 归档管理插件设置界面](assets/archive-manager-preview.png)
+
+## 功能
+
+- 在 DSH Web 的 **设置** 中增加 **已归档聊天**。
+- 按项目/工作区分组显示归档聊天；没有所属项目的聊天会单独归组。
+- 按标题、工作目录、项目名称或会话 ID 搜索。
+- 按项目筛选。
+- 按更新时间、创建时间或字母顺序排序。
+- 使用 **取消归档** 恢复单条聊天。
+- 永久删除单条聊天及其本地会话日志。
+- 通过项目操作菜单删除某个项目中的全部归档聊天。
+- 使用右上角的 **全部删除** 永久删除所有归档聊天。
+- 在聊天行显示运行状态，并阻止误删仍在运行的聊天。
+- 所有删除操作都需要确认。
+- 自动适配 DSH 的浅色和深色主题，并沿用 DSH 的界面风格。
+
+## 项目特点与兼容性
+
+- 插件独立、松耦合，不修改 DSH 核心包。停用或卸载插件不会影响 DSH Web 核心功能。
+- 不会自动按 30 天清理。归档聊天会一直保留，直到你主动取消归档或永久删除。
+- 正在运行，或仍挂载在 Agent 上的聊天不能删除。请先停止会话，再重新执行删除。
+- 删除文件前会校验会话身份、文件位置和文件类型。无法安全确认的会话会保留原状，并在页面中显示原因。
+- 删除成功后会同步清理相关的 Workspace 记录和本地索引。
+- 永久删除目前面向 DSH 默认的本地 JSONL 存储。遇到其他存储后端时，插件会安全拒绝删除，不会猜测路径或强行操作。
+- 批量删除时，未通过安全检查的条目会保留并显示原因；通过检查的条目会正常删除。
+- 插件不会上传聊天内容，也不依赖外部服务；会话数据始终保留在本机。
+- 当前版本面向 DSH Web `0.1.0-rc.8` 及兼容的后续版本。若未来 DSH 改动会话或 Workspace 接口，请使用明确支持该版本的插件版本。
+
+## 从 GitHub 安装
+
+直接从公开仓库安装：
+
+```sh
+dsh plugin --profile web add github:MeSun424/dsh-archive-manager
+```
+
+安装完成后重启 DSH Web，然后打开 **设置 > 已归档聊天**。
+
+## 从本地源码安装
+
+适用于下载源码后安装或测试本地构建。打包需要 Node.js 和 npm：
+
+```sh
+git clone https://github.com/MeSun424/dsh-archive-manager.git
+cd dsh-archive-manager
+npm install
+npm run pack:local
+dsh plugin --profile web add file:"$PWD/dsh-archive-manager-0.1.0-local.tgz"
+```
+
+安装完成后重启 DSH Web。
+
+## 更新或重新安装
+
+使用同一个 `add` 命令安装新的 GitHub 版本或本地安装包，然后重启 DSH Web。如果 DSH 提示插件已经存在，可以先移除旧版本，再重新安装：
+
+```sh
+dsh plugin --profile web remove dsh-archive-manager
+dsh plugin --profile web add github:MeSun424/dsh-archive-manager
+```
+
+移除或重新安装插件不会删除已有的归档聊天或会话文件。
+
+## 停用或卸载
+
+如果你的 DSH 版本提供插件管理器开关，可以在插件管理器中关闭 `dsh-archive-manager` 来暂时停用插件。修改插件状态后请重启 DSH Web。
+
+要从 Web profile 中卸载插件：
+
+```sh
+dsh plugin --profile web remove dsh-archive-manager
+```
+
+卸载不会影响 DSH 核心功能和仍保留的聊天数据；已经永久删除的聊天也不会因为卸载而恢复。
+
+## 许可证
+
+MIT

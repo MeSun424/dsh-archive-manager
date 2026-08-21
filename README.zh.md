@@ -35,7 +35,7 @@ DSH 归档管理插件为 DeepSeek Harness Web 增加完整的归档管理页面
 - 永久删除目前面向 DSH 默认的本地 JSONL 存储。遇到其他存储后端时，插件会安全拒绝删除，不会猜测路径或强行操作。
 - 批量删除时，未通过安全检查的条目会保留并显示原因；通过检查的条目会正常删除。
 - 插件不会上传聊天内容，也不依赖外部服务；会话数据始终保留在本机。
-- 已在 DSH Web `0.1.1-rc.1` 上验证。虽然该版本不再把 UI 兼容模块作为独立 Node 包安装，但 Web 启动时仍会提供这些兼容模块。若未来 DSH 改动会话或 Workspace 接口，请使用明确支持该版本的插件版本。
+- 已在 DSH Web `0.1.1-rc.2` 上验证。客户端图标由插件自行打包，因此不再依赖当前 Web profile 中不存在的 UI primitives 包。若未来 DSH 改动会话或 Workspace 接口，请使用明确支持该版本的插件版本。
 
 ## 从 GitHub 安装
 
@@ -56,7 +56,7 @@ git clone https://github.com/MeSun424/dsh-archive-manager.git
 cd dsh-archive-manager
 npm install
 npm run pack:local
-dsh plugin --profile web add file:"$PWD/dsh-archive-manager-0.1.1.tgz"
+dsh plugin --profile web add file:"$PWD/dsh-archive-manager-0.1.2.tgz"
 ```
 
 安装完成后重启 DSH Web。

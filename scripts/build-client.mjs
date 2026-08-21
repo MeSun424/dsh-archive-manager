@@ -34,7 +34,6 @@ const args = [
   '--minify',
   '--legal-comments=none',
   '--external:react',
-  '--external:@deepseek-ai/dsh-client-ui-primitives',
   `--alias:zod=${zodEntry}`,
   '--banner:js=window.__ModuleLoader__.load({id:"dsh-archive-manager",factory:(require)=>{var module={exports:{}};var exports=module.exports;',
   '--footer:js=return module.exports;}});',

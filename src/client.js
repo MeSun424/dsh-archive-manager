@@ -1,20 +1,40 @@
 import React from 'react'
-import {
-  IconArchiveOutline20,
-  IconChevronDownOutline14,
-  IconChevronLeftOutline14,
-  IconFolderOpen16,
-  IconFolderOpenOutline16,
-  IconListPenOutline16,
-  IconSearchOutline16,
-  IconSettingsOutline16,
-  IconTrashOutline16,
-} from '@deepseek-ai/dsh-client-ui-primitives'
 import TYPERT_REMOTE from '../lib/typert.remote-client.js'
 
 const CSS_ID = 'dsh-archive-manager/client'
 const ARCHIVE_ICON_PATH = 'M15.8659 2.05975C17.2603 2.05995 18.3913 3.19096 18.3914 4.58527V5.4874C18.3914 6.02747 18.2192 6.52672 17.9303 6.93735C17.9336 6.96524 17.9388 6.99318 17.9388 7.02195V12.8884C17.9388 13.6345 17.9395 14.2379 17.8996 14.7254C17.8642 15.1593 17.7936 15.5499 17.6373 15.9141L17.5654 16.0685C17.278 16.6328 16.8405 17.1046 16.3038 17.434L16.0679 17.5661C15.66 17.7739 15.2196 17.8598 14.7237 17.9003C14.2362 17.9401 13.6327 17.9405 12.8867 17.9405H7.11122C6.36511 17.9405 5.76171 17.9401 5.27418 17.9003C4.84051 17.8649 4.44949 17.7952 4.08545 17.6391L3.93104 17.5661C3.36673 17.2785 2.89392 16.8414 2.56465 16.3044L2.43245 16.0685C2.22473 15.6608 2.13878 15.2211 2.09825 14.7254C2.05841 14.2379 2.05912 13.6345 2.05912 12.8884V7.02195C2.05912 6.99284 2.06422 6.96449 2.06758 6.93629C1.77931 6.52592 1.60858 6.02687 1.60858 5.4874V4.58527C1.60876 3.19084 2.73962 2.05975 4.1341 2.05975H15.8659ZM16.4984 7.92936C16.296 7.98169 16.0847 8.01288 15.8659 8.01291H4.1341C3.91478 8.01291 3.70246 7.98194 3.49955 7.92936V12.8884C3.49955 13.6582 3.50053 14.1927 3.53445 14.608C3.56769 15.0146 3.62923 15.244 3.71635 15.415L3.7925 15.5514C3.98339 15.8627 4.25749 16.1165 4.58464 16.2833L4.72529 16.3435C4.88095 16.3993 5.08638 16.4402 5.39158 16.4651C5.80685 16.4991 6.34138 16.5001 7.11122 16.5001H12.8867C13.6564 16.5001 14.1911 16.499 14.6063 16.4651C15.0128 16.432 15.2423 16.3703 15.4133 16.2833L15.5508 16.2061C15.8618 16.0152 16.116 15.7419 16.2827 15.415L16.3429 15.2732C16.3985 15.1177 16.4396 14.9128 16.4645 14.608C16.4985 14.1927 16.4984 13.6583 16.4984 12.8884V7.92936ZM4.1341 3.50019C3.53511 3.50019 3.0492 3.98631 3.04902 4.58527V5.4874C3.04902 6.08649 3.535 6.57248 4.1341 6.57248H15.8659C16.4648 6.57228 16.951 6.08638 16.951 5.4874V4.58527C16.9509 3.98644 16.4647 3.50038 15.8659 3.50019H4.1341Z'
 const ARCHIVE_ICON_LINE_PATH = 'M12.7962 12.5661V11.0832H7.20548V12.5661L12.7962 12.5661Z'
+
+// Keep the optional UI contribution self-contained. DSH 0.1.1-rc.2 no longer
+// installs dsh-client-ui-primitives as a standalone package.
+function iconComponent(path, { fill = 'none', stroke = 'currentColor', viewBox = '0 0 24 24' } = {}) {
+  return function PluginIcon({ size = 16, className, ...props }) {
+    return React.createElement('svg', {
+      ...props,
+      className,
+      width: size,
+      height: size,
+      viewBox,
+      fill,
+      stroke,
+      strokeWidth: stroke === 'none' ? undefined : 1.8,
+      strokeLinecap: 'round',
+      strokeLinejoin: 'round',
+      xmlns: 'http://www.w3.org/2000/svg',
+      'aria-hidden': props['aria-label'] === undefined ? 'true' : undefined,
+    }, React.createElement('path', { d: path }))
+  }
+}
+
+const IconArchiveOutline20 = iconComponent(ARCHIVE_ICON_PATH, { fill: 'currentColor', stroke: 'none', viewBox: '0 0 20 20' })
+const IconChevronDownOutline14 = iconComponent('M5 8.5 12 15l7-6.5')
+const IconChevronLeftOutline14 = iconComponent('M14.5 5 8 12l6.5 7')
+const IconFolderOpen16 = iconComponent('M3.5 7.5h6l2 2h9v8.2a1.8 1.8 0 0 1-1.8 1.8H5.3a1.8 1.8 0 0 1-1.8-1.8V7.5Zm0 0V5.8A1.8 1.8 0 0 1 5.3 4h4l2 2h5.4')
+const IconFolderOpenOutline16 = iconComponent('M3.5 7.5h6l2 2h9v8.2a1.8 1.8 0 0 1-1.8 1.8H5.3a1.8 1.8 0 0 1-1.8-1.8V7.5Zm0 0V5.8A1.8 1.8 0 0 1 5.3 4h4l2 2h5.4')
+const IconListPenOutline16 = iconComponent('M4 5.5h10M4 10h7M4 14.5h5M15.2 14.8l3.8-3.8 1.5 1.5-3.8 3.8-2.3.8.8-2.3Z')
+const IconSearchOutline16 = iconComponent('m20 20-4.4-4.4M10.8 18a7.2 7.2 0 1 1 0-14.4 7.2 7.2 0 0 1 0 14.4Z')
+const IconSettingsOutline16 = iconComponent('M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm0-5v2m0 15v2m9-10h-2M5 12H3m15.4-6.4-1.4 1.4M7 17l-1.4 1.4m12.8 0L17 17M7 7 5.6 5.6')
+const IconTrashOutline16 = iconComponent('M4 7h16M9 7V4.8A1.8 1.8 0 0 1 10.8 3h2.4A1.8 1.8 0 0 1 15 4.8V7m-9 0 .8 13h10.4L18 7M10 11v5M14 11v5')
 const UI = {
   open: false,
   revision: 0,

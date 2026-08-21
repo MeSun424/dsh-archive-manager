@@ -31,6 +31,8 @@ const args = [
   '--format=cjs',
   '--platform=browser',
   '--target=es2022',
+  '--minify',
+  '--legal-comments=none',
   '--external:react',
   '--external:@deepseek-ai/dsh-client-ui-primitives',
   `--alias:zod=${zodEntry}`,

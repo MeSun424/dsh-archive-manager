@@ -196,6 +196,9 @@ const SETTINGS_ROOT_SELECTOR = [
   '[data-slot="settings.overlay"]',
   '[data-slot="settings.nav"]',
   '[data-slot="settings.section"]',
+  '.VOzbGW_overlay',
+  '.VOzbGW_panel',
+  '.VOzbGW_nav',
   '[role="menu"]',
   '[role="dialog"]',
   '[role="alertdialog"]',
@@ -204,6 +207,7 @@ const SETTINGS_ROOT_SELECTOR = [
 
 const SETTINGS_OVERLAY_SELECTOR = [
   '[data-slot="settings.overlay"]',
+  '.VOzbGW_overlay',
   '[role="menu"]',
   '[role="dialog"]',
   '[role="alertdialog"]',
@@ -253,7 +257,11 @@ function installSettingsRootObserver({ scan, onMutation, characterData = false }
 
 function installArchiveNavIcon() {
   const replaceButton = (button) => {
-    if (!(button instanceof Element) || button.textContent?.trim() !== '已归档聊天') return
+    if (!(button instanceof Element)) return
+    const label = button.matches('.VOzbGW_navCell')
+      ? button.querySelector('.VOzbGW_navLabel')
+      : button
+    if (label?.textContent?.trim() !== '已归档聊天' && button.textContent?.trim() !== '已归档聊天') return
     const icon = button?.querySelector('svg')
     if (icon === null || icon === undefined || icon.dataset.damArchiveIcon === 'true') return
     icon.replaceWith(createArchiveNavIcon())
@@ -261,10 +269,10 @@ function installArchiveNavIcon() {
 
   const scan = (root) => {
     if (!(root instanceof Element)) return
-    if (root.matches('button,[role="button"]')) replaceButton(root)
-    for (const button of root.querySelectorAll('button,[role="button"]')) replaceButton(button)
+    if (root.matches('button,[role="button"],.VOzbGW_navCell')) replaceButton(root)
+    for (const button of root.querySelectorAll('button,[role="button"],.VOzbGW_navCell')) replaceButton(button)
   }
-  return installSettingsRootObserver({
+  const cleanupObserver = installSettingsRootObserver({
     scan,
     onMutation(records) {
       for (const record of records) {
@@ -272,6 +280,13 @@ function installArchiveNavIcon() {
       }
     },
   })
+  const timer = window.setInterval(() => {
+    for (const button of document.querySelectorAll('.VOzbGW_navCell, button,[role="button"]')) replaceButton(button)
+  }, 400)
+  return () => {
+    window.clearInterval(timer)
+    cleanupObserver()
+  }
 }
 
 function installWorkspaceArchiveCopy() {
@@ -364,13 +379,16 @@ function ArchiveSection({ useSessions, useWorkspaces, invoke, refresh, pickDirec
   const [notice, setNotice] = React.useState(null)
   const [liveIds, setLiveIds] = React.useState(() => new Set())
   const [archiveState, setArchiveState] = React.useState(() => ({ archivedSessionIds: [], archivedSessions: [], archivedWorkspaces: [] }))
+  const [archivesLoaded, setArchivesLoaded] = React.useState(false)
 
   const refreshArchives = React.useCallback(async () => {
     try {
       const answer = await invoke('archives', {})
       setArchiveState(answer ?? { archivedSessionIds: [], archivedSessions: [], archivedWorkspaces: [] })
+      setArchivesLoaded(true)
     } catch (loadError) {
       setError(errorText(loadError))
+      setArchivesLoaded(true)
     }
   }, [invoke])
 
@@ -431,7 +449,7 @@ function ArchiveSection({ useSessions, useWorkspaces, invoke, refresh, pickDirec
     }
     return map
   }, [snapshotBySession, workspaceState.items])
-  const archivedIds = archiveState.archivedSessionIds?.length > 0 ? archiveState.archivedSessionIds : workspaceState.archivedSessionIds
+  const archivedIds = archivesLoaded ? (archiveState.archivedSessionIds ?? []) : []
   const archivedSessionById = React.useMemo(() => new Map((archiveState.archivedSessions ?? []).map((item) => [String(item.id), item])), [archiveState.archivedSessions])
   const archived = React.useMemo(() => new Set(archivedIds), [archivedIds])
   const rows = React.useMemo(() => {
@@ -443,9 +461,9 @@ function ArchiveSection({ useSessions, useWorkspaces, invoke, refresh, pickDirec
       const workspace = projectBySession.get(key)
       return {
         id: key,
-        title: summary?.displayTitle || summary?.title || persisted?.displayTitle || persisted?.title || key,
-        updatedAt: summary?.updatedAt ?? persisted?.updatedAt ?? 0,
-        createdAt: summary?.createdAt ?? persisted?.createdAt ?? persisted?.updatedAt ?? 0,
+        title: persisted?.displayTitle || persisted?.title || summary?.displayTitle || summary?.title || key,
+        updatedAt: persisted?.updatedAt ?? summary?.updatedAt ?? 0,
+        createdAt: persisted?.createdAt ?? summary?.createdAt ?? persisted?.updatedAt ?? summary?.updatedAt ?? 0,
         workspace,
         projectId: workspace === undefined ? 'none' : String(workspace.workspaceId),
         projectTitle: projectName(workspace),

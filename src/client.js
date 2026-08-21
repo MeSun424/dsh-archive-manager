@@ -291,6 +291,7 @@ function installArchiveNavIcon() {
 
 function installWorkspaceArchiveCopy() {
   const originals = new Map()
+  const originalIcons = new Map()
   const replaceText = (node) => {
     if (node.nodeType !== Node.TEXT_NODE || typeof node.nodeValue !== 'string') return
     const value = node.nodeValue
@@ -310,10 +311,21 @@ function installWorkspaceArchiveCopy() {
     if (!originals.has(node)) originals.set(node, value)
     node.nodeValue = next
   }
+  const replaceMenuIcon = (item) => {
+    if (!(item instanceof Element)) return
+    const value = item.textContent?.trim()
+    if (value !== '删除工作区' && value !== '归档工作区' && value !== '正在删除工作区…' && value !== '正在归档工作区…' && value !== 'Delete workspace' && value !== 'Archive workspace' && value !== 'Deleting workspace…' && value !== 'Archiving workspace…') return
+    const icon = item.querySelector('svg')
+    if (icon === null || icon.dataset.damArchiveIcon === 'true') return
+    if (!originalIcons.has(icon)) originalIcons.set(icon, icon.cloneNode(true))
+    icon.replaceWith(createArchiveNavIcon())
+  }
   const scan = (root) => {
     if (root.nodeType === Node.TEXT_NODE) return replaceText(root)
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
     for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) replaceText(node)
+    for (const item of root.querySelectorAll('[role="menu"] button,[role="menu"] [role="menuitem"]')) replaceMenuIcon(item)
+    if (root.matches?.('[role="menu"]')) replaceMenuIcon(root)
   }
   const cleanup = installSettingsRootObserver({
     scan,
@@ -325,9 +337,17 @@ function installWorkspaceArchiveCopy() {
       }
     },
   })
+  const timer = window.setInterval(() => {
+    for (const menu of document.querySelectorAll('[role="menu"]')) scan(menu)
+  }, 250)
   return () => {
+    window.clearInterval(timer)
     cleanup()
     for (const [node, value] of originals) if (node.isConnected) node.nodeValue = value
+    for (const [node, icon] of originalIcons) {
+      const replacement = node.parentElement?.querySelector('svg[data-dam-archive-icon="true"]')
+      if (replacement !== null && replacement !== undefined) replacement.replaceWith(icon)
+    }
   }
 }
 

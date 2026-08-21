@@ -1,6 +1,6 @@
 {
   "name": "dsh-archive-manager",
-  "version": "0.1.8",
+  "version": "0.1.10",
   "description": "Independent archived-session manager for DeepSeek Harness Web.",
   "type": "module",
   "main": "lib/service-plugin.js",

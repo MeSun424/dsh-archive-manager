@@ -196,6 +196,7 @@ const SETTINGS_ROOT_SELECTOR = [
   '[data-slot="settings.overlay"]',
   '[data-slot="settings.nav"]',
   '[data-slot="settings.section"]',
+  '[role="menu"]',
   '[role="dialog"]',
   '[role="alertdialog"]',
   '.dam-settings-page',
@@ -203,6 +204,7 @@ const SETTINGS_ROOT_SELECTOR = [
 
 const SETTINGS_OVERLAY_SELECTOR = [
   '[data-slot="settings.overlay"]',
+  '[role="menu"]',
   '[role="dialog"]',
   '[role="alertdialog"]',
 ].join(', ')
@@ -250,9 +252,8 @@ function installSettingsRootObserver({ scan, onMutation, characterData = false }
 }
 
 function installArchiveNavIcon() {
-  const replaceIcon = (label) => {
-    if (!(label instanceof Element) || label.textContent?.trim() !== '已归档聊天') return
-    const button = label.closest('button')
+  const replaceButton = (button) => {
+    if (!(button instanceof Element) || button.textContent?.trim() !== '已归档聊天') return
     const icon = button?.querySelector('svg')
     if (icon === null || icon === undefined || icon.dataset.damArchiveIcon === 'true') return
     icon.replaceWith(createArchiveNavIcon())
@@ -260,8 +261,8 @@ function installArchiveNavIcon() {
 
   const scan = (root) => {
     if (!(root instanceof Element)) return
-    if (root instanceof Element && root.matches('.VOzbGW_navLabel')) replaceIcon(root)
-    for (const label of root.querySelectorAll('.VOzbGW_navLabel')) replaceIcon(label)
+    if (root.matches('button,[role="button"]')) replaceButton(root)
+    for (const button of root.querySelectorAll('button,[role="button"]')) replaceButton(button)
   }
   return installSettingsRootObserver({
     scan,
@@ -362,12 +363,12 @@ function ArchiveSection({ useSessions, useWorkspaces, invoke, refresh, pickDirec
   const [error, setError] = React.useState(null)
   const [notice, setNotice] = React.useState(null)
   const [liveIds, setLiveIds] = React.useState(() => new Set())
-  const [archiveState, setArchiveState] = React.useState(() => ({ archivedSessionIds: [], archivedWorkspaces: [] }))
+  const [archiveState, setArchiveState] = React.useState(() => ({ archivedSessionIds: [], archivedSessions: [], archivedWorkspaces: [] }))
 
   const refreshArchives = React.useCallback(async () => {
     try {
       const answer = await invoke('archives', {})
-      setArchiveState(answer ?? { archivedSessionIds: [], archivedWorkspaces: [] })
+      setArchiveState(answer ?? { archivedSessionIds: [], archivedSessions: [], archivedWorkspaces: [] })
     } catch (loadError) {
       setError(errorText(loadError))
     }
@@ -431,18 +432,20 @@ function ArchiveSection({ useSessions, useWorkspaces, invoke, refresh, pickDirec
     return map
   }, [snapshotBySession, workspaceState.items])
   const archivedIds = archiveState.archivedSessionIds?.length > 0 ? archiveState.archivedSessionIds : workspaceState.archivedSessionIds
+  const archivedSessionById = React.useMemo(() => new Map((archiveState.archivedSessions ?? []).map((item) => [String(item.id), item])), [archiveState.archivedSessions])
   const archived = React.useMemo(() => new Set(archivedIds), [archivedIds])
   const rows = React.useMemo(() => {
     const needle = query.trim().toLocaleLowerCase()
     return archivedIds.map((id) => {
       const key = String(id)
       const summary = sessionState.byId[key]
+      const persisted = archivedSessionById.get(key)
       const workspace = projectBySession.get(key)
       return {
         id: key,
-        title: summary?.displayTitle || summary?.title || key,
-        updatedAt: summary?.updatedAt ?? 0,
-        createdAt: summary?.createdAt ?? summary?.updatedAt ?? 0,
+        title: summary?.displayTitle || summary?.title || persisted?.displayTitle || persisted?.title || key,
+        updatedAt: summary?.updatedAt ?? persisted?.updatedAt ?? 0,
+        createdAt: summary?.createdAt ?? persisted?.createdAt ?? persisted?.updatedAt ?? 0,
         workspace,
         projectId: workspace === undefined ? 'none' : String(workspace.workspaceId),
         projectTitle: projectName(workspace),
@@ -450,7 +453,7 @@ function ArchiveSection({ useSessions, useWorkspaces, invoke, refresh, pickDirec
         workspaceArchived: typeof workspace?.archivedAt === 'string',
         running: summary?.running === true && liveIds.has(key),
         attached: liveIds.has(key),
-        searchable: [summary?.displayTitle, summary?.title, summary?.cwd, key, projectName(workspace)]
+        searchable: [summary?.displayTitle, summary?.title, persisted?.displayTitle, persisted?.title, summary?.cwd, persisted?.cwd, key, projectName(workspace)]
           .filter((part) => typeof part === 'string').join(' ').toLocaleLowerCase(),
       }
     }).filter((row) => {
@@ -462,7 +465,7 @@ function ArchiveSection({ useSessions, useWorkspaces, invoke, refresh, pickDirec
       if (chatSort === 'alpha') return left.title.localeCompare(right.title, undefined, { numeric: true, sensitivity: 'base' }) || right.updatedAt - left.updatedAt
       return right.updatedAt - left.updatedAt
     })
-  }, [archivedIds, chatSort, liveIds, projectBySession, projectFilter, query, sessionState.byId])
+  }, [archivedIds, archivedSessionById, chatSort, liveIds, projectBySession, projectFilter, query, sessionState.byId])
 
   const groups = React.useMemo(() => {
     const result = new Map()

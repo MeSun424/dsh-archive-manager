@@ -172,28 +172,85 @@ function createArchiveNavIcon() {
   return svg
 }
 
-function installArchiveNavIcon() {
-  const replaceIcon = () => {
-    const buttons = new Set()
-    for (const label of document.querySelectorAll('.VOzbGW_navLabel')) {
-      if (label.textContent?.trim() !== '已归档聊天') continue
-      const button = label.closest('button')
-      if (button !== null) buttons.add(button)
+const SETTINGS_ROOT_SELECTOR = [
+  '[data-slot="settings.overlay"]',
+  '[data-slot="settings.nav"]',
+  '[data-slot="settings.section"]',
+  '[role="dialog"]',
+  '[role="alertdialog"]',
+  '.dam-settings-page',
+].join(', ')
+
+const SETTINGS_OVERLAY_SELECTOR = [
+  '[data-slot="settings.overlay"]',
+  '[role="dialog"]',
+  '[role="alertdialog"]',
+].join(', ')
+
+function installSettingsRootObserver({ scan, onMutation, characterData = false }) {
+  const roots = new Set()
+  const rootObservers = new Map()
+  const body = document.body
+
+  const attach = (root) => {
+    if (!(root instanceof Element) || roots.has(root)) return
+    for (const existing of roots) {
+      if (existing.contains(root)) return
     }
-    for (const button of document.querySelectorAll('button')) {
-      if (button.textContent?.trim() === '已归档聊天') buttons.add(button)
-    }
-    for (const button of buttons) {
-      const icon = button.querySelector('svg')
-      if (icon === null || icon.dataset.damArchiveIcon === 'true') continue
-      icon.replaceWith(createArchiveNavIcon())
-    }
+    roots.add(root)
+    scan(root)
+    const observer = new MutationObserver((records) => onMutation(records, root))
+    observer.observe(root, { childList: true, subtree: true, characterData })
+    rootObservers.set(root, observer)
   }
 
-  replaceIcon()
-  const observer = new MutationObserver(replaceIcon)
-  observer.observe(document.body ?? document.documentElement, { childList: true, subtree: true })
-  return () => observer.disconnect()
+  const collect = (node, descend = false) => {
+    if (!(node instanceof Element)) return
+    if (node.matches(SETTINGS_ROOT_SELECTOR)) attach(node)
+    if (!descend && !node.matches(SETTINGS_OVERLAY_SELECTOR)) return
+    for (const root of node.querySelectorAll(SETTINGS_ROOT_SELECTOR)) attach(root)
+  }
+
+  // This one-time lookup handles a settings view that is already mounted.
+  for (const root of document.querySelectorAll(SETTINGS_ROOT_SELECTOR)) attach(root)
+
+  const bodyObserver = body === null ? null : new MutationObserver((records) => {
+    for (const record of records) {
+      for (const node of record.addedNodes) collect(node)
+    }
+  })
+  bodyObserver?.observe(body, { childList: true })
+
+  return () => {
+    bodyObserver?.disconnect()
+    for (const observer of rootObservers.values()) observer.disconnect()
+    roots.clear()
+    rootObservers.clear()
+  }
+}
+
+function installArchiveNavIcon() {
+  const replaceIcon = (label) => {
+    if (!(label instanceof Element) || label.textContent?.trim() !== '已归档聊天') return
+    const button = label.closest('button')
+    const icon = button?.querySelector('svg')
+    if (icon === null || icon === undefined || icon.dataset.damArchiveIcon === 'true') return
+    icon.replaceWith(createArchiveNavIcon())
+  }
+
+  const scan = (root) => {
+    if (!(root instanceof Element)) return
+    if (root instanceof Element && root.matches('.VOzbGW_navLabel')) replaceIcon(root)
+    for (const label of root.querySelectorAll('.VOzbGW_navLabel')) replaceIcon(label)
+  }
+  return installSettingsRootObserver({
+    scan,
+    onMutation(records) {
+      for (const record of records) {
+        for (const node of record.addedNodes) scan(node)
+      }
+    },
+  })
 }
 
 function installWorkspaceArchiveCopy() {
@@ -222,16 +279,18 @@ function installWorkspaceArchiveCopy() {
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
     for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) replaceText(node)
   }
-  scan(document.body ?? document.documentElement)
-  const observer = new MutationObserver((records) => {
-    for (const record of records) {
-      if (record.type === 'characterData') replaceText(record.target)
-      for (const node of record.addedNodes) scan(node)
-    }
+  const cleanup = installSettingsRootObserver({
+    scan,
+    characterData: true,
+    onMutation(records) {
+      for (const record of records) {
+        if (record.type === 'characterData') replaceText(record.target)
+        for (const node of record.addedNodes) scan(node)
+      }
+    },
   })
-  observer.observe(document.body ?? document.documentElement, { childList: true, subtree: true, characterData: true })
   return () => {
-    observer.disconnect()
+    cleanup()
     for (const [node, value] of originals) if (node.isConnected) node.nodeValue = value
   }
 }

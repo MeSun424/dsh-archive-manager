@@ -10,6 +10,9 @@ DSH Archive Manager adds a complete archive workspace to the DeepSeek Harness We
 
 - Adds **Archived chats** to **Settings** in DSH Web.
 - Groups archived chats by project/workspace, with a separate group for chats that are not assigned to a project.
+- Replaces workspace deletion with workspace archiving: the workspace and all of its chats keep their original project relationship in the archive.
+- Restores an archived workspace together with its chats. If the original directory is unavailable, the archive remains visible as an unavailable project and can be restored to a directory selected by the user.
+- A restore to a different directory keeps the archived chats attached to the selected workspace and shows a red in-page warning that the changed working directory may prevent some chats from continuing normally.
 - Searches archived chats by title, working directory, project, or session ID.
 - Filters the list by project.
 - Sorts chats by updated time, created time, or alphabetical order.
@@ -17,7 +20,8 @@ DSH Archive Manager adds a complete archive workspace to the DeepSeek Harness We
 - Permanently deletes an individual chat and its local session log.
 - Deletes every archived chat in a project from the project actions menu.
 - Permanently deletes all archived chats with the **Delete all** action in the upper-right corner.
-- Shows when a chat is still running and protects it from accidental deletion.
+- Automatically cancels and releases any live session as soon as it becomes archived, so archived chats do not remain attached to the current process.
+- Refuses to archive a chat while its Agent is genuinely running. Workspace archiving is also refused when any session in that workspace is genuinely running; an idle or merely attached session does not block archiving.
 - Uses confirmation dialogs before destructive actions.
 - Follows DSH's light and dark themes and its existing visual language.
 
@@ -25,7 +29,7 @@ DSH Archive Manager adds a complete archive workspace to the DeepSeek Harness We
 
 - The plugin is independent and loosely coupled. It does not modify DSH core packages. You can disable or remove it without making DSH Web unusable.
 - Archived chats are not deleted automatically. They stay recoverable until you unarchive or permanently delete them.
-- A running chat, or a chat still attached to an Agent, cannot be deleted. Stop it first, then retry.
+- When an archived chat still has a running turn or is attached to an Agent, deletion first cancels the turn and releases its current-process attachment, then removes the session file.
 - Before deleting a file, the plugin checks the session identity, file location, and file type. If a session cannot be verified safely, it is left untouched and the reason is shown in the page.
 - After a successful deletion, related workspace records and local indexes are cleaned up.
 - Permanent deletion currently supports DSH's default local JSONL storage. Other storage backends are refused safely rather than guessed at.

@@ -75,6 +75,8 @@ const css = `
 .dam-group-toggle{display:none}
 .dam-section{margin-top:36px}
 .dam-section:first-of-type{margin-top:0}
+.dam-section-missing .dam-group{opacity:.58}
+.dam-section-status{margin-left:8px;color:var(--dsw-alias-state-error-primary);font:400 11px/16px var(--dsw-font-family)}
 .dam-section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 13px;padding:0 1px;color:var(--dsw-alias-label-secondary);font:600 15px/22px var(--dsw-font-family)}
 .dam-section-count{color:var(--dsw-alias-label-caption);font:400 12px/18px var(--dsw-font-family)}
 .dam-section-more{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;margin-left:8px;color:var(--dsw-alias-label-caption);font:600 16px/20px var(--dsw-font-family);background:transparent;border:0;border-radius:7px;cursor:pointer}
@@ -98,6 +100,8 @@ const css = `
 .dam-empty{padding:70px 20px;text-align:center;color:var(--dsw-alias-label-tertiary);font:400 14px/22px var(--dsw-font-family);border:1px dashed var(--dsw-alias-border-l2);border-radius:12px}
 .dam-error{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:12px 14px;margin-bottom:18px;color:var(--dsw-alias-state-error-primary);font:400 13px/20px var(--dsw-font-family);background:var(--dsw-alias-interactive-bg-hover-danger);border-radius:10px}
 .dam-error button{flex:none;color:inherit;font:600 13px/20px var(--dsw-font-family);background:transparent;border:0;cursor:pointer}
+.dam-toast{position:fixed;top:18px;left:50%;z-index:140;display:flex;align-items:flex-start;gap:12px;width:min(680px,calc(100vw - 36px));padding:12px 16px;color:var(--dsw-alias-state-error-primary);font:500 13px/20px var(--dsw-font-family);background:var(--dsw-alias-interactive-bg-hover-danger);border:1px solid color-mix(in srgb,var(--dsw-alias-state-error-primary) 28%,transparent);border-radius:10px;box-shadow:var(--dsw-shadow-lv2);transform:translateX(-50%)}
+.dam-toast button{flex:none;margin-left:auto;color:inherit;font:600 13px/20px var(--dsw-font-family);background:transparent;border:0;cursor:pointer}
 .dam-confirm-backdrop{position:fixed;inset:0;z-index:120;display:grid;place-items:center;padding:24px;background:color-mix(in srgb,var(--dsw-alias-bg-base) 64%,transparent);backdrop-filter:blur(4px)}
 .dam-confirm{width:min(440px,100%);padding:24px;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l2);border-radius:14px;box-shadow:var(--dsw-shadow-lv3)}
 .dam-confirm-title{margin:0;color:var(--dsw-alias-label-primary);font:600 18px/26px var(--dsw-font-family)}
@@ -192,6 +196,46 @@ function installArchiveNavIcon() {
   return () => observer.disconnect()
 }
 
+function installWorkspaceArchiveCopy() {
+  const originals = new Map()
+  const replaceText = (node) => {
+    if (node.nodeType !== Node.TEXT_NODE || typeof node.nodeValue !== 'string') return
+    const value = node.nodeValue
+    let next = value
+    if (value === '删除工作区') next = '归档工作区'
+    else if (value === '正在删除工作区…') next = '正在归档工作区…'
+    else if (value.startsWith('将把“') && value.endsWith('从工作区列表中移除。文件夹与会话记录会保留，其会话将显示在“未分组”下。')) {
+      const name = value.slice(3, value.indexOf('”'))
+      next = `将把“${name}”及其所有会话移入“已归档聊天”，并保留原工作区归属。`
+    } else if (value === 'Delete workspace') next = 'Archive workspace'
+    else if (value === 'Deleting workspace…') next = 'Archiving workspace…'
+    else if (value.startsWith('This removes “') && value.endsWith(' from the workspace list. The folder and session logs will be kept. Its sessions will appear under Ungrouped.')) {
+      const name = value.slice(14, value.indexOf('”'))
+      next = `This moves “${name}” and all of its chats to Archived chats while preserving their workspace relationship.`
+    }
+    if (next === value) return
+    if (!originals.has(node)) originals.set(node, value)
+    node.nodeValue = next
+  }
+  const scan = (root) => {
+    if (root.nodeType === Node.TEXT_NODE) return replaceText(root)
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+    for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) replaceText(node)
+  }
+  scan(document.body ?? document.documentElement)
+  const observer = new MutationObserver((records) => {
+    for (const record of records) {
+      if (record.type === 'characterData') replaceText(record.target)
+      for (const node of record.addedNodes) scan(node)
+    }
+  })
+  observer.observe(document.body ?? document.documentElement, { childList: true, subtree: true, characterData: true })
+  return () => {
+    observer.disconnect()
+    for (const [node, value] of originals) if (node.isConnected) node.nodeValue = value
+  }
+}
+
 function errorText(error) {
   return error instanceof Error ? error.message : String(error)
 }
@@ -227,7 +271,7 @@ function ArchiveButton({ wide }) {
     wide ? React.createElement('span', { className: 'dam-footer-label' }, '已归档的聊天') : null))
 }
 
-function ArchiveSection({ useSessions, useWorkspaces, invoke, refresh }) {
+function ArchiveSection({ useSessions, useWorkspaces, invoke, refresh, pickDirectory }) {
   const sessionState = useSessions((state) => state)
   const workspaceState = useWorkspaces((state) => state)
   const [query, setQuery] = React.useState('')
@@ -237,6 +281,41 @@ function ArchiveSection({ useSessions, useWorkspaces, invoke, refresh }) {
   const [confirm, setConfirm] = React.useState(null)
   const [groupMenuId, setGroupMenuId] = React.useState(null)
   const [error, setError] = React.useState(null)
+  const [notice, setNotice] = React.useState(null)
+  const [liveIds, setLiveIds] = React.useState(() => new Set())
+  const [archiveState, setArchiveState] = React.useState(() => ({ archivedSessionIds: [], archivedWorkspaces: [] }))
+
+  const refreshArchives = React.useCallback(async () => {
+    try {
+      const answer = await invoke('archives', {})
+      setArchiveState(answer ?? { archivedSessionIds: [], archivedWorkspaces: [] })
+    } catch (loadError) {
+      setError(errorText(loadError))
+    }
+  }, [invoke])
+
+  React.useEffect(() => {
+    refreshArchives()
+  }, [refreshArchives])
+
+  React.useEffect(() => {
+    let cancelled = false
+    const loadLive = async () => {
+      try {
+        const answer = await invoke('live', {})
+        if (cancelled) return
+        setLiveIds(new Set((answer?.liveSessionIds ?? []).map(String)))
+      } catch {
+        if (!cancelled) setLiveIds(new Set())
+      }
+    }
+    loadLive()
+    const timer = window.setInterval(loadLive, 4000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [invoke])
 
   React.useEffect(() => {
     if (groupMenuId === null) return undefined
@@ -249,21 +328,34 @@ function ArchiveSection({ useSessions, useWorkspaces, invoke, refresh }) {
     return () => document.removeEventListener('pointerdown', closeMenu)
   }, [groupMenuId])
 
-  const projects = React.useMemo(() => workspaceState.items.map((workspace) => ({
-    id: String(workspace.workspaceId),
-    title: projectName(workspace),
-  })), [workspaceState.items])
-  const projectBySession = React.useMemo(() => {
+  const snapshots = React.useMemo(() => archiveState.archivedWorkspaces ?? [], [archiveState.archivedWorkspaces])
+  const snapshotBySession = React.useMemo(() => {
     const map = new Map()
-    for (const workspace of workspaceState.items) {
-      for (const sessionId of workspace.sessionIds ?? []) map.set(String(sessionId), workspace)
+    for (const snapshot of snapshots) {
+      for (const sessionId of snapshot.sessionIds ?? []) map.set(String(sessionId), snapshot)
     }
     return map
-  }, [workspaceState.items])
-  const archived = React.useMemo(() => new Set(workspaceState.archivedSessionIds), [workspaceState.archivedSessionIds])
+  }, [snapshots])
+  const projects = React.useMemo(() => [...workspaceState.items.map((workspace) => ({
+    id: String(workspace.workspaceId),
+    title: projectName(workspace),
+  })), ...snapshots.map((snapshot) => ({
+    id: String(snapshot.workspaceId),
+    title: projectName(snapshot),
+  })).filter((snapshot) => !workspaceState.items.some((workspace) => String(workspace.workspaceId) === snapshot.id))], [snapshots, workspaceState.items])
+  const projectBySession = React.useMemo(() => {
+    const map = new Map()
+    for (const [sessionId, snapshot] of snapshotBySession) map.set(sessionId, snapshot)
+    for (const workspace of workspaceState.items) {
+      for (const sessionId of workspace.sessionIds ?? []) if (!map.has(String(sessionId))) map.set(String(sessionId), workspace)
+    }
+    return map
+  }, [snapshotBySession, workspaceState.items])
+  const archivedIds = archiveState.archivedSessionIds?.length > 0 ? archiveState.archivedSessionIds : workspaceState.archivedSessionIds
+  const archived = React.useMemo(() => new Set(archivedIds), [archivedIds])
   const rows = React.useMemo(() => {
     const needle = query.trim().toLocaleLowerCase()
-    return workspaceState.archivedSessionIds.map((id) => {
+    return archivedIds.map((id) => {
       const key = String(id)
       const summary = sessionState.byId[key]
       const workspace = projectBySession.get(key)
@@ -275,7 +367,10 @@ function ArchiveSection({ useSessions, useWorkspaces, invoke, refresh }) {
         workspace,
         projectId: workspace === undefined ? 'none' : String(workspace.workspaceId),
         projectTitle: projectName(workspace),
-        running: summary?.running === true,
+        workspaceMissing: workspace?.pathAvailable === false,
+        workspaceArchived: typeof workspace?.archivedAt === 'string',
+        running: summary?.running === true && liveIds.has(key),
+        attached: liveIds.has(key),
         searchable: [summary?.displayTitle, summary?.title, summary?.cwd, key, projectName(workspace)]
           .filter((part) => typeof part === 'string').join(' ').toLocaleLowerCase(),
       }
@@ -288,13 +383,13 @@ function ArchiveSection({ useSessions, useWorkspaces, invoke, refresh }) {
       if (chatSort === 'alpha') return left.title.localeCompare(right.title, undefined, { numeric: true, sensitivity: 'base' }) || right.updatedAt - left.updatedAt
       return right.updatedAt - left.updatedAt
     })
-  }, [chatSort, projectBySession, projectFilter, query, sessionState.byId, workspaceState.archivedSessionIds])
+  }, [archivedIds, chatSort, liveIds, projectBySession, projectFilter, query, sessionState.byId])
 
   const groups = React.useMemo(() => {
     const result = new Map()
     for (const row of rows) {
       const key = row.projectId
-      const group = result.get(key) ?? { id: key, title: row.projectTitle, rows: [] }
+      const group = result.get(key) ?? { id: key, title: row.projectTitle, missing: row.workspaceMissing, archivedWorkspace: row.workspaceArchived, rows: [] }
       group.rows.push(row)
       result.set(key, group)
     }
@@ -306,10 +401,23 @@ function ArchiveSection({ useSessions, useWorkspaces, invoke, refresh }) {
     setError(null)
     try {
       const answer = await invoke(method, args)
+      if (method === 'restoreWorkspaceAt' && answer.workspaceRelocated) {
+        setNotice('工作区目录已变化。如果原目录中的数据已经丢失，原对话可能无法正常继续。')
+      }
+      if (answer.workspaceMissing) {
+        setError(`原工作区路径不存在：${answer.workspacePath}。该项目及会话会继续保留在归档中。`)
+      }
       if (answer.skipped?.length > 0) {
         setError(answer.skipped.map((item) => `${item.sessionId}: ${item.message}`).join('；'))
       }
       await refresh()
+      await refreshArchives()
+      try {
+        const answer = await invoke('live', {})
+        setLiveIds(new Set((answer?.liveSessionIds ?? []).map(String)))
+      } catch {
+        setLiveIds(new Set())
+      }
       setConfirm(null)
     } catch (actionError) {
       setError(errorText(actionError))
@@ -318,16 +426,24 @@ function ArchiveSection({ useSessions, useWorkspaces, invoke, refresh }) {
     }
   }
 
+  React.useEffect(() => {
+    if (notice === null) return undefined
+    const timer = window.setTimeout(() => setNotice(null), 9000)
+    return () => window.clearTimeout(timer)
+  }, [notice])
+
   const askDelete = (row) => setConfirm({
     kind: 'one',
     ids: [row.id],
     title: '永久删除聊天？',
     copy: row.running
-      ? '这个聊天正在运行，停止后才能永久删除。'
-      : '这会删除会话日志文件，删除后无法恢复。',
+      ? '这个聊天仍有运行标记。删除前会强制截断当前回合并释放它，然后永久删除会话文件。'
+      : row.attached
+        ? '这个聊天仍挂在当前进程里。删除前会强制释放它，再永久删除会话文件。'
+        : '这会删除会话日志文件，删除后无法恢复。',
   })
   const askDeleteAll = () => {
-    const ids = workspaceState.archivedSessionIds.map(String)
+    const ids = archivedIds.map(String)
     if (ids.length === 0) return
     setConfirm({
       kind: 'many',
@@ -342,6 +458,19 @@ function ArchiveSection({ useSessions, useWorkspaces, invoke, refresh }) {
     title: '删除该项目中的所有聊天？',
     copy: `这将永久删除此项目中的 ${group.rows.length} 条本地已归档聊天`,
   })
+
+  const restoreGroup = async (group) => {
+    if (group.missing && typeof pickDirectory === 'function') {
+      try {
+        const path = await pickDirectory()
+        if (path) return runAction('restoreWorkspaceAt', { workspaceId: group.id, path }, group.id)
+      } catch (pickError) {
+        setError(errorText(pickError))
+      }
+      return
+    }
+    return runAction('restoreWorkspace', { workspaceId: group.id }, group.id)
+  }
 
   const toolbar = React.createElement('div', { className: 'dam-toolbar' },
     React.createElement('label', { className: 'dam-search' },
@@ -370,14 +499,14 @@ function ArchiveSection({ useSessions, useWorkspaces, invoke, refresh }) {
       React.createElement('div', { className: 'dam-row-title', title: row.title }, row.title),
       React.createElement('div', { className: 'dam-row-meta' },
         React.createElement('span', null, formatDate(row.updatedAt)),
-        row.running ? React.createElement('span', null, '正在运行') : null)),
+        row.running ? React.createElement('span', null, '正在运行') : row.attached ? React.createElement('span', null, '仍挂载') : null)),
     React.createElement('div', { className: 'dam-row-actions' },
       React.createElement('button', {
         type: 'button',
         className: 'dam-action dam-row-delete',
         title: '永久删除',
         'aria-label': `永久删除 ${row.title}`,
-        disabled: busyId !== null || row.running,
+        disabled: busyId !== null,
         onClick: () => askDelete(row),
       }, React.createElement(IconTrashOutline16, { size: 16 })),
       React.createElement('button', {
@@ -387,11 +516,12 @@ function ArchiveSection({ useSessions, useWorkspaces, invoke, refresh }) {
         onClick: () => runAction('unarchive', { sessionId: row.id }, row.id),
       }, '取消归档')))
 
-  const renderGroup = (group) => React.createElement('section', { key: group.id, className: 'dam-section' },
+  const renderGroup = (group) => React.createElement('section', { key: group.id, className: group.missing ? 'dam-section dam-section-missing' : 'dam-section' },
     React.createElement('h2', { className: 'dam-section-heading' },
       React.createElement('span', { className: 'dam-section-heading-title' },
         React.createElement(IconFolderOpen16, { size: 16 }),
-        React.createElement('span', { className: 'dam-section-heading-label' }, group.title)),
+        React.createElement('span', { className: 'dam-section-heading-label' }, group.title),
+        group.missing ? React.createElement('span', { className: 'dam-section-status' }, '路径不存在') : null),
       React.createElement('span', { className: 'dam-section-heading-actions' },
         React.createElement('span', { className: 'dam-section-count' }, `${group.rows.length} 个聊天`),
         React.createElement('span', { className: 'dam-section-menu-wrap' },
@@ -407,6 +537,16 @@ function ArchiveSection({ useSessions, useWorkspaces, invoke, refresh }) {
           }, React.createElement('span', { className: 'dam-section-more-glyph', 'aria-hidden': 'true' }, '…')),
           groupMenuId === group.id
             ? React.createElement('div', { className: 'dam-group-menu', role: 'menu' },
+                group.archivedWorkspace
+                  ? React.createElement('button', {
+                    type: 'button',
+                    role: 'menuitem',
+                    onClick: () => {
+                      setGroupMenuId(null)
+                      restoreGroup(group)
+                    },
+                  }, React.createElement(IconFolderOpenOutline16, { size: 16 }), '恢复项目')
+                  : null,
                 React.createElement('button', {
                   type: 'button',
                   role: 'menuitem',
@@ -427,7 +567,7 @@ function ArchiveSection({ useSessions, useWorkspaces, invoke, refresh }) {
     className: 'dam-delete-all',
     title: '永久删除全部已归档聊天',
     'aria-label': '永久删除全部已归档聊天',
-    disabled: workspaceState.archivedSessionIds.length === 0 || busyId !== null,
+    disabled: archivedIds.length === 0 || busyId !== null,
     onClick: askDeleteAll,
   }, React.createElement(IconTrashOutline16, { size: 15 }), '全部删除')
 
@@ -440,11 +580,14 @@ function ArchiveSection({ useSessions, useWorkspaces, invoke, refresh }) {
         React.createElement('button', {
           type: 'button',
           className: 'dam-action dam-action-danger',
-          disabled: busyId !== null || confirm.kind === 'one' && rows.find((row) => row.id === confirm.ids[0])?.running === true,
+          disabled: busyId !== null,
           onClick: () => runAction(confirm.kind === 'many' ? 'deleteMany' : 'delete', confirm.kind === 'many' ? { sessionIds: confirm.ids } : { sessionId: confirm.ids[0] }, confirm.kind === 'many' ? 'all' : confirm.ids[0]),
         }, React.createElement(IconTrashOutline16, { size: 16 }), confirm.kind === 'many' ? '删除' : '永久删除'))))
 
   return React.createElement(React.Fragment, null,
+    notice === null ? null : React.createElement('div', { className: 'dam-toast', role: 'status' },
+      React.createElement('span', null, notice),
+      React.createElement('button', { type: 'button', onClick: () => setNotice(null) }, '关闭')),
     React.createElement('section', { className: 'dam-settings-page', 'aria-label': '已归档聊天' },
       React.createElement('main', { className: 'dam-main' },
         React.createElement('div', { className: 'dam-main-inner' },
@@ -464,6 +607,7 @@ export const inject = ['remote', 'connection', 'slots', 'sessions', 'workspaces'
 export async function apply(ctx) {
   installStyles()
   ctx.effect(() => installArchiveNavIcon(), 'dsh-archive-manager: settings archive icon')
+  ctx.effect(() => installWorkspaceArchiveCopy(), 'dsh-archive-manager: workspace archive copy')
   const disposeRemote = await ctx.remote.$mount(TYPERT_REMOTE)
   ctx.effect(() => disposeRemote, 'dsh-archive-manager: remote contribution')
 
@@ -474,14 +618,42 @@ export async function apply(ctx) {
   }
 
   const refresh = async () => {
-    await Promise.all([ctx.sessions.refresh(), ctx.workspaces.refresh()])
+    await ctx.sessions.refresh()
+    await ctx.workspaces.refresh()
   }
+
+  const originalDeleteWorkspace = ctx.workspaces.delete
+  const originalArchiveSession = ctx.workspaces.archiveSession
+  const archiveWorkspace = async (workspaceId) => {
+    await invoke('archiveWorkspace', { workspaceId: String(workspaceId) })
+    try {
+      await originalDeleteWorkspace.call(ctx.workspaces, workspaceId)
+    } catch (deleteError) {
+      try {
+        await invoke('restoreWorkspace', { workspaceId: String(workspaceId) })
+        await ctx.workspaces.refresh()
+      } catch (rollbackError) {
+        console.error('dsh-archive-manager: workspace archive rollback failed', rollbackError)
+      }
+      throw deleteError
+    }
+  }
+  const archiveSession = async (sessionId) => {
+    await invoke('archiveSession', { sessionId: String(sessionId) })
+    await ctx.workspaces.refresh()
+  }
+  ctx.workspaces.delete = archiveWorkspace
+  ctx.workspaces.archiveSession = archiveSession
+  ctx.effect(() => () => {
+    if (ctx.workspaces.delete === archiveWorkspace) ctx.workspaces.delete = originalDeleteWorkspace
+    if (ctx.workspaces.archiveSession === archiveSession) ctx.workspaces.archiveSession = originalArchiveSession
+  }, 'dsh-archive-manager: workspace archive interception')
 
   ctx.slots.inject('settings.section', () => ctx.slots.register({
     name: 'settings.section',
     id: 'archived-conversations',
     order: 21,
     label: '已归档聊天',
-    inject: () => ({ invoke, refresh }),
-  }, ArchiveSection))
+    inject: () => ({ invoke, refresh, pickDirectory: () => ctx.workspaces.pickDirectory() }),
+    }, ArchiveSection))
 }

@@ -242,10 +242,12 @@ function installSettingsRootObserver({ scan, onMutation, characterData = false }
 
   const bodyObserver = body === null ? null : new MutationObserver((records) => {
     for (const record of records) {
-      for (const node of record.addedNodes) collect(node)
+      for (const node of record.addedNodes) collect(node, true)
     }
   })
-  bodyObserver?.observe(body, { childList: true })
+  // Modal portals may be nested inside a long-lived body container. Observe
+  // the full subtree so archive copy reaches dynamically mounted dialogs.
+  bodyObserver?.observe(body, { childList: true, subtree: true })
 
   return () => {
     bodyObserver?.disconnect()

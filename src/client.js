@@ -532,7 +532,7 @@ function ArchiveSection({ useSessions, useWorkspaces, invoke, refresh, pickDirec
       if (answer.skipped?.length > 0) {
         setError(answer.skipped.map((item) => `${item.sessionId}: ${item.message}`).join('；'))
       }
-      await refresh()
+      await refresh(answer)
       await refreshArchives()
       try {
         const answer = await invoke('live', {})
@@ -739,21 +739,50 @@ export async function apply(ctx) {
     return answer.value
   }
 
-  const refresh = async () => {
-    await ctx.sessions.refresh()
-    await ctx.workspaces.refresh()
+  const syncWorkspaceArchiveProjection = (answer) => {
+    const archivedSessionIds = answer?.archivedSessionIds
+    if (!Array.isArray(archivedSessionIds)) return
+    const model = ctx.workspaces?.model
+    if (typeof model?.replaceArchived === 'function') {
+      model.replaceArchived(archivedSessionIds)
+      return
+    }
+    // Compatibility with the pre-stream Workspace model used by older DSH builds.
+    if (typeof model?.installArchived === 'function') model.installArchived(archivedSessionIds)
+  }
+
+  const refreshWorkspaces = async () => {
+    // DSH 0.1.2 uses a live Workspace snapshot stream and no longer exposes
+    // workspaces.refresh(). Older controller builds still require the pull.
+    if (typeof ctx.workspaces?.refresh === 'function') await ctx.workspaces.refresh()
+  }
+
+  const refresh = async (answer) => {
+    syncWorkspaceArchiveProjection(answer)
+    if (typeof ctx.sessions?.refresh === 'function') await ctx.sessions.refresh()
+    await refreshWorkspaces()
+  }
+
+  const pickDirectory = async () => {
+    // DSH 0.1.2 moved directory UI capabilities out of the pure Workspace
+    // Controller. Keep the older location as a compatibility fallback.
+    if (typeof ctx.uiWorkspace?.pickDirectory === 'function') return ctx.uiWorkspace.pickDirectory()
+    if (typeof ctx.workspaces?.pickDirectory === 'function') return ctx.workspaces.pickDirectory()
+    throw new Error('当前 DSH 版本不提供工作区目录选择接口')
   }
 
   const originalDeleteWorkspace = ctx.workspaces.delete
   const originalArchiveSession = ctx.workspaces.archiveSession
   const archiveWorkspace = async (workspaceId) => {
-    await invoke('archiveWorkspace', { workspaceId: String(workspaceId) })
+    const answer = await invoke('archiveWorkspace', { workspaceId: String(workspaceId) })
+    syncWorkspaceArchiveProjection(answer)
     try {
       await originalDeleteWorkspace.call(ctx.workspaces, workspaceId)
     } catch (deleteError) {
       try {
-        await invoke('restoreWorkspace', { workspaceId: String(workspaceId) })
-        await ctx.workspaces.refresh()
+        const rollback = await invoke('restoreWorkspace', { workspaceId: String(workspaceId) })
+        syncWorkspaceArchiveProjection(rollback)
+        await refreshWorkspaces()
       } catch (rollbackError) {
         console.error('dsh-archive-manager: workspace archive rollback failed', rollbackError)
       }
@@ -761,8 +790,9 @@ export async function apply(ctx) {
     }
   }
   const archiveSession = async (sessionId) => {
-    await invoke('archiveSession', { sessionId: String(sessionId) })
-    await ctx.workspaces.refresh()
+    const answer = await invoke('archiveSession', { sessionId: String(sessionId) })
+    syncWorkspaceArchiveProjection(answer)
+    await refreshWorkspaces()
   }
   ctx.workspaces.delete = archiveWorkspace
   ctx.workspaces.archiveSession = archiveSession
@@ -776,6 +806,6 @@ export async function apply(ctx) {
     id: 'archived-conversations',
     order: 21,
     label: '已归档聊天',
-    inject: () => ({ invoke, refresh, pickDirectory: () => ctx.workspaces.pickDirectory() }),
+    inject: () => ({ invoke, refresh, pickDirectory }),
     }, ArchiveSection))
 }

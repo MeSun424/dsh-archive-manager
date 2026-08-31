@@ -35,7 +35,7 @@ DSH Archive Manager adds a complete archive workspace to the DeepSeek Harness We
 - Permanent deletion currently supports DSH's default local JSONL storage. Other storage backends are refused safely rather than guessed at.
 - During bulk deletion, entries that fail a safety check remain available and are reported; successfully deleted entries are removed.
 - The plugin does not upload chat content or use an external service. Session data remains on your machine.
-- Tested with DSH Web `0.1.2-alpha.1`. The client icons are bundled by this plugin, so the release does not depend on a version-specific host icon package. If a future DSH release changes its session or workspace interfaces, install a plugin release that explicitly supports it.
+- Supports DSH Web `0.1.2-alpha.1` and `0.1.2-alpha.2`. The runtime integration was verified locally on `0.1.2-alpha.1`, with the alpha.2 remote-error and subagent lifecycle interfaces audited against the upstream release. The client icons are bundled by this plugin, so the release does not depend on a version-specific host icon package. If a future DSH release changes its session or workspace interfaces, install a plugin release that explicitly supports it.
 
 ## Install From GitHub
 

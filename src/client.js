@@ -724,6 +724,10 @@ function ArchiveSection({ useSessions, useWorkspaces, invoke, refresh, pickDirec
     confirmDialog)
 }
 
+// DSH 0.1.2 exposes the native directory picker through uiWorkspace. Resolve
+// that optional service with ctx.get() in pickDirectory() below so the dynamic
+// client runner allows the new API without making the plugin unloadable on
+// older DSH builds that only expose workspaces.pickDirectory().
 export const inject = ['remote', 'connection', 'slots', 'sessions', 'workspaces']
 
 export async function apply(ctx) {
@@ -766,7 +770,8 @@ export async function apply(ctx) {
   const pickDirectory = async () => {
     // DSH 0.1.2 moved directory UI capabilities out of the pure Workspace
     // Controller. Keep the older location as a compatibility fallback.
-    if (typeof ctx.uiWorkspace?.pickDirectory === 'function') return ctx.uiWorkspace.pickDirectory()
+    const uiWorkspace = typeof ctx.get === 'function' ? ctx.get('uiWorkspace') : undefined
+    if (typeof uiWorkspace?.pickDirectory === 'function') return uiWorkspace.pickDirectory()
     if (typeof ctx.workspaces?.pickDirectory === 'function') return ctx.workspaces.pickDirectory()
     throw new Error('当前 DSH 版本不提供工作区目录选择接口')
   }

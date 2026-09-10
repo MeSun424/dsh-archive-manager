@@ -35,7 +35,7 @@ DSH 归档管理插件为 DeepSeek Harness Web 增加完整的归档管理页面
 - 永久删除目前面向 DSH 默认的本地 JSONL 存储。遇到其他存储后端时，插件会安全拒绝删除，不会猜测路径或强行操作。
 - 批量删除时，未通过安全检查的条目会保留并显示原因；通过检查的条目会正常删除。
 - 插件不会上传聊天内容，也不依赖外部服务；会话数据始终保留在本机。
-- 支持 DSH Web `0.1.2-alpha.1`、`0.1.2-alpha.2` 和 `0.1.2-rc.1`。RC 版本通过可选的 `uiWorkspace` 服务提供目录选择；插件会在该服务可用时使用它，并在旧版中回退到 `workspaces.pickDirectory()`。客户端图标由插件自行打包，因此不依赖特定版本的宿主图标包。若未来 DSH 改动会话或 Workspace 接口，请使用明确支持该版本的插件版本。
+- 支持 DSH Web `0.1.2-alpha.1`、`0.1.2-alpha.2`、`0.1.2-rc.1` 和 `0.1.5-rc.1`。RC 版本通过可选的 `uiWorkspace` 服务提供目录选择；插件会在该服务可用时使用它，并在旧版中回退到 `workspaces.pickDirectory()`。会话列表、读取和永久删除会走当前持久化句柄接口，并保留旧版原始日志读取作为回退。客户端图标由插件自行打包，因此不依赖特定版本的宿主图标包。若未来 DSH 改动会话或 Workspace 接口，请使用明确支持该版本的插件版本。
 
 ## 从 GitHub 安装
 
@@ -56,7 +56,7 @@ git clone https://github.com/MeSun424/dsh-archive-manager.git
 cd dsh-archive-manager
 npm install
 npm run pack:local
-dsh plugin --profile web add file:"$PWD/dsh-archive-manager-0.1.2.tgz"
+dsh plugin --profile web add file:"$PWD/dsh-archive-manager-$(node -p "require('./package.json').version").tgz"
 ```
 
 安装完成后重启 DSH Web。

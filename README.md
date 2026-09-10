@@ -23,6 +23,7 @@ DSH Archive Manager adds a complete archive workspace to the DeepSeek Harness We
 - Automatically cancels and releases any live session as soon as it becomes archived, so archived chats do not remain attached to the current process.
 - Refuses to archive a chat while its Agent is genuinely running. Workspace archiving is also refused when any session in that workspace is genuinely running; an idle or merely attached session does not block archiving.
 - Uses confirmation dialogs before destructive actions.
+- Cleans leftover empty session shells that were detached from every workspace, so they no longer show up as blank Ungrouped chats.
 - Follows DSH's light and dark themes and its existing visual language.
 
 ## Safety And Compatibility
@@ -32,6 +33,7 @@ DSH Archive Manager adds a complete archive workspace to the DeepSeek Harness We
 - When an archived chat still has a running turn or is attached to an Agent, deletion first cancels the turn and releases its current-process attachment, then removes the session file.
 - Before deleting a file, the plugin checks the session identity, file location, and file type. If a session cannot be verified safely, it is left untouched and the reason is shown in the page.
 - After a successful deletion, related workspace records and local indexes are cleaned up.
+- Empty leftover chats that no longer belong to any workspace are removed automatically, so they do not reappear under Ungrouped. Chats that still have conversation content are left untouched.
 - Permanent deletion currently supports DSH's default local JSONL storage. Other storage backends are refused safely rather than guessed at.
 - During bulk deletion, entries that fail a safety check remain available and are reported; successfully deleted entries are removed.
 - The plugin does not upload chat content or use an external service. Session data remains on your machine.

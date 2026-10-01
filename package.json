@@ -1,12 +1,13 @@
 {
   "name": "dsh-archive-manager",
-  "version": "0.1.18",
-  "description": "Independent archived-session manager for DeepSeek Harness Web.",
+  "version": "0.2.0",
+  "description": "Archive browsing, restore, and safe permanent deletion for DeepSeek Harness Desktop and Web.",
   "type": "module",
   "main": "lib/service-plugin.js",
   "scripts": {
     "build:client": "node scripts/build-client.mjs",
-    "pack:local": "npm run build:client && npm pack"
+    "pack:local": "npm run build:client && npm pack",
+    "test": "node --test test/*.test.mjs"
   },
   "exports": {
     ".": "./lib/service-plugin.js",
@@ -33,11 +34,11 @@
   ],
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-agent": "^0.1.2-alpha.1 || ^0.1.5-rc.1",
-    "@deepseek-ai/dsh-session-persistence": "^0.1.2-alpha.1 || ^0.1.5-rc.1",
-    "@deepseek-ai/dsh-storage-domain": "^0.1.2-alpha.1 || ^0.1.5-rc.1",
-    "@deepseek-ai/dsh-typert-protocol": "^0.1.2-alpha.1 || ^0.1.5-rc.1",
-    "@deepseek-ai/dsh-workspace": "^0.1.2-alpha.1 || ^0.1.5-rc.1",
+    "@deepseek-ai/dsh-agent": "^0.1.2-alpha.1 || ^0.1.5-rc.1 || 0.2.0-rc.2",
+    "@deepseek-ai/dsh-session-persistence": "^0.1.2-alpha.1 || ^0.1.5-rc.1 || 0.2.0-rc.2",
+    "@deepseek-ai/dsh-storage-domain": "^0.1.2-alpha.1 || ^0.1.5-rc.1 || 0.2.0-rc.2",
+    "@deepseek-ai/dsh-typert-protocol": "^0.1.2-alpha.1 || ^0.1.5-rc.1 || 0.2.0-rc.2",
+    "@deepseek-ai/dsh-workspace": "^0.1.2-alpha.1 || ^0.1.5-rc.1 || 0.2.0-rc.2",
     "react": "^18.2.0",
     "zod": "^4.0.0"
   },
@@ -58,5 +59,9 @@
       "patch": "./cordis.patch.yml"
     }
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@deepseek-ai/dsh-typert-registry": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-session-persistence-jsonl": "0.2.0-rc.2"
+  }
 }

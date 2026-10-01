@@ -2,13 +2,13 @@
 
 [English](README.md) | 中文
 
-DSH 归档管理插件为 DeepSeek Harness Web 增加完整的归档管理页面。你可以在一个位置按项目查看已归档聊天、搜索和筛选内容、恢复聊天，或永久删除本地会话文件。
+DSH 归档管理插件为 DeepSeek Harness 桌面版和 Web 版增加完整的归档管理页面。你可以在一个位置按项目查看已归档聊天、搜索和筛选内容、恢复聊天，或永久删除本地会话文件。
 
 ![DSH 归档管理插件设置界面](assets/archive-manager-preview.png)
 
 ## 功能
 
-- 在 DSH Web 的 **设置** 中增加 **已归档聊天**。
+- 在 DSH 的 **设置** 中增加 **已归档聊天**。
 - 按项目/工作区分组显示归档聊天；没有所属项目的聊天会单独归组。
 - 将工作区删除改为工作区归档：工作区及其全部聊天会保留原项目关系，一并进入归档管理。
 - 取消归档工作区时连同聊天一起恢复。原目录不可用时，归档页会保留一个不可用的虚拟项目，并允许重新选择目录尝试恢复。
@@ -37,9 +37,28 @@ DSH 归档管理插件为 DeepSeek Harness Web 增加完整的归档管理页面
 - 永久删除目前面向 DSH 默认的本地 JSONL 存储。遇到其他存储后端时，插件会安全拒绝删除，不会猜测路径或强行操作。
 - 批量删除时，未通过安全检查的条目会保留并显示原因；通过检查的条目会正常删除。
 - 插件不会上传聊天内容，也不依赖外部服务；会话数据始终保留在本机。
-- 支持 DSH Web `0.1.2-alpha.1`、`0.1.2-alpha.2`、`0.1.2-rc.1` 和 `0.1.5-rc.1`。RC 版本通过可选的 `uiWorkspace` 服务提供目录选择；插件会在该服务可用时使用它，并在旧版中回退到 `workspaces.pickDirectory()`。会话列表、读取和永久删除会走当前持久化句柄接口，并保留旧版原始日志读取作为回退。客户端图标由插件自行打包，因此不依赖特定版本的宿主图标包。若未来 DSH 改动会话或 Workspace 接口，请使用明确支持该版本的插件版本。
+- 已验证 DeepSeek Harness 桌面版 `0.2.0-rc.2`。适配新版插件通信协议、V4 会话日志和跨进程写入锁；归档会同步取消聊天置顶，并检查后台任务和子智能体活动。桌面版沿用 Web 客户端插件接口，因此同一份插件也可用于 Web。
+- 保留对 DSH Web `0.1.2-alpha.1`、`0.1.2-alpha.2`、`0.1.2-rc.1` 和 `0.1.5-rc.1` 的支持。RC 版本通过可选的 `uiWorkspace` 服务提供目录选择；插件会在该服务可用时使用它，并在旧版中回退到 `workspaces.pickDirectory()`。会话列表、读取和永久删除会走当前持久化句柄接口，并保留旧版原始日志读取作为回退。客户端图标由插件自行打包，因此不依赖特定版本的宿主图标包。若未来 DSH 改动会话或 Workspace 接口，请使用明确支持该版本的插件版本。
 
-## 从 GitHub 安装
+## 安装到桌面版
+
+先完全退出 DeepSeek Harness 桌面版，再使用桌面版自带的 `dsh` 安装插件：
+
+```sh
+dsh plugin --profile desktop add github:MeSun424/dsh-archive-manager
+```
+
+如果没有将桌面版的 `dsh` 加入 PATH，macOS 可以直接使用：
+
+```sh
+"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add github:MeSun424/dsh-archive-manager
+```
+
+本地源码打包后，将上面命令中的 GitHub 地址换成安装包的绝对路径，例如 `file:/path/to/dsh-archive-manager-0.2.0.tgz`。不要为安装桌面插件另装 npm 全局 CLI。
+
+重新打开桌面版，然后进入 **设置 > 已归档聊天**。更新、移除桌面插件时同样使用 `--profile desktop`；操作前先完全退出桌面版。卸载命令是 `dsh plugin --profile desktop remove dsh-archive-manager`，不会删除聊天数据。
+
+## 安装到 Web 版
 
 直接从公开仓库安装：
 

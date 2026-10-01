@@ -2,13 +2,13 @@
 
 English | [中文](README.zh.md)
 
-DSH Archive Manager adds a complete archive workspace to the DeepSeek Harness Web profile. It gives you one place to find archived chats, browse them by project, restore them, or permanently remove their local session files.
+DSH Archive Manager adds a complete archive workspace to DeepSeek Harness Desktop and Web. It gives you one place to find archived chats, browse them by project, restore them, or permanently remove their local session files.
 
 ![DSH Archive Manager in Settings](assets/archive-manager-preview.png)
 
 ## What It Does
 
-- Adds **Archived chats** to **Settings** in DSH Web.
+- Adds **Archived chats** to **Settings** in DSH.
 - Groups archived chats by project/workspace, with a separate group for chats that are not assigned to a project.
 - Replaces workspace deletion with workspace archiving: the workspace and all of its chats keep their original project relationship in the archive.
 - Restores an archived workspace together with its chats. If the original directory is unavailable, the archive remains visible as an unavailable project and can be restored to a directory selected by the user.
@@ -37,9 +37,28 @@ DSH Archive Manager adds a complete archive workspace to the DeepSeek Harness We
 - Permanent deletion currently supports DSH's default local JSONL storage. Other storage backends are refused safely rather than guessed at.
 - During bulk deletion, entries that fail a safety check remain available and are reported; successfully deleted entries are removed.
 - The plugin does not upload chat content or use an external service. Session data remains on your machine.
-- Supports DSH Web `0.1.2-alpha.1`, `0.1.2-alpha.2`, `0.1.2-rc.1`, and `0.1.5-rc.1`. The RC client exposes directory picking through an optional `uiWorkspace` service; the plugin uses it when available and keeps the older `workspaces.pickDirectory()` fallback for earlier builds. Session listing, reading, and permanent deletion follow the current persistence handle API, with the older raw-log helpers kept as fallbacks. The client icons are bundled by this plugin, so the release does not depend on a version-specific host icon package. If a future DSH release changes its session or workspace interfaces, install a plugin release that explicitly supports it.
+- Verified with DeepSeek Harness Desktop `0.2.0-rc.2`: lazy Typert codecs, V4 session logs, cross-process write leases, unpinning on archive, and activity checks for jobs and subagents. Desktop uses the Web client plugin interface, so the same package works on both surfaces.
+- Retains support for DSH Web `0.1.2-alpha.1`, `0.1.2-alpha.2`, `0.1.2-rc.1`, and `0.1.5-rc.1`. The RC client exposes directory picking through an optional `uiWorkspace` service; the plugin uses it when available and keeps the older `workspaces.pickDirectory()` fallback for earlier builds. Session listing, reading, and permanent deletion follow the current persistence handle API, with the older raw-log helpers kept as fallbacks. The client icons are bundled by this plugin, so the release does not depend on a version-specific host icon package. If a future DSH release changes its session or workspace interfaces, install a plugin release that explicitly supports it.
 
-## Install From GitHub
+## Install On Desktop
+
+Fully quit DeepSeek Harness Desktop, then use the `dsh` command shipped with Desktop:
+
+```sh
+dsh plugin --profile desktop add github:MeSun424/dsh-archive-manager
+```
+
+If Desktop's `dsh` is not on PATH, macOS users can run it directly:
+
+```sh
+"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add github:MeSun424/dsh-archive-manager
+```
+
+For a local build, replace the GitHub address with the absolute package path, such as `file:/path/to/dsh-archive-manager-0.2.0.tgz`. A separate npm-global CLI is not needed.
+
+Reopen Desktop and go to **Settings > Archived chats**. Use `--profile desktop` for updates and removal too, and fully quit the app first. To uninstall, run `dsh plugin --profile desktop remove dsh-archive-manager`; chat data is retained.
+
+## Install On Web
 
 Install directly from the public repository:
 

@@ -12,7 +12,7 @@ DSH Archive Manager adds a complete archive workspace to DeepSeek Harness Deskto
 - Groups archived chats by project/workspace, with a separate group for chats that are not assigned to a project.
 - Replaces workspace deletion with workspace archiving: the workspace and all of its chats keep their original project relationship in the archive.
 - Restores an archived workspace together with its chats. If the original directory is unavailable, the archive remains visible as an unavailable project and can be restored to a directory selected by the user.
-- A restore to a different directory keeps the archived chats attached to the selected workspace and shows a red in-page warning that the changed working directory may prevent some chats from continuing normally.
+- Restoring to another directory changes project grouping only. It does not migrate the original session working directory or files; continued chats may still use the original directory. Prefer restoring to the original path.
 - Searches archived chats by title, working directory, project, or session ID.
 - Filters the list by project.
 - Sorts chats by updated time, created time, or alphabetical order.
@@ -21,7 +21,7 @@ DSH Archive Manager adds a complete archive workspace to DeepSeek Harness Deskto
 - Deletes every archived chat in a project from the project actions menu.
 - Permanently deletes all archived chats with the **Delete all** action in the upper-right corner.
 - Automatically cancels and releases any live session as soon as it becomes archived, so archived chats do not remain attached to the current process.
-- Refuses to archive a chat while its Agent is genuinely running. Workspace archiving is also refused when any session in that workspace is genuinely running; an idle or merely attached session does not block archiving.
+- Refuses archiving while an Agent is running or the host reports background jobs, subagents, or other activity. Stop those tasks before archiving. An idle or merely attached session does not block archiving.
 - Uses confirmation dialogs before destructive actions.
 - Cleans leftover empty session shells that were detached from every workspace, so they no longer show up as blank Ungrouped chats.
 - Follows DSH's light and dark themes and its existing visual language.
@@ -36,6 +36,9 @@ DSH Archive Manager adds a complete archive workspace to DeepSeek Harness Deskto
 - Empty leftover chats that no longer belong to any workspace are removed automatically, so they do not reappear under Ungrouped. Chats that still have conversation content are left untouched.
 - Permanent deletion currently supports DSH's default local JSONL storage. Other storage backends are refused safely rather than guessed at.
 - During bulk deletion, entries that fail a safety check remain available and are reported; successfully deleted entries are removed.
+- Project deletion includes archived chats hidden by search, with the actual count shown in confirmation. Unarchived chats and project files are kept.
+- If log deletion succeeds but updating the archive index fails, the error explains that deletion must be retried to finish cleanup.
+- Empty archived projects can be restored through their project menu. Temporarily unreadable logs do not cause archive records to be removed.
 - The plugin does not upload chat content or use an external service. Session data remains on your machine.
 - Verified with DeepSeek Harness Desktop `0.2.0-rc.2`: lazy Typert codecs, V4 session logs, cross-process write leases, unpinning on archive, and activity checks for jobs and subagents. Desktop uses the Web client plugin interface, so the same package works on both surfaces.
 - Retains support for DSH Web `0.1.2-alpha.1`, `0.1.2-alpha.2`, `0.1.2-rc.1`, and `0.1.5-rc.1`. The RC client exposes directory picking through an optional `uiWorkspace` service; the plugin uses it when available and keeps the older `workspaces.pickDirectory()` fallback for earlier builds. Session listing, reading, and permanent deletion follow the current persistence handle API, with the older raw-log helpers kept as fallbacks. The client icons are bundled by this plugin, so the release does not depend on a version-specific host icon package. If a future DSH release changes its session or workspace interfaces, install a plugin release that explicitly supports it.
@@ -54,7 +57,7 @@ If Desktop's `dsh` is not on PATH, macOS users can run it directly:
 "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add github:MeSun424/dsh-archive-manager
 ```
 
-For a local build, replace the GitHub address with the absolute package path, such as `file:/path/to/dsh-archive-manager-0.2.0.tgz`. A separate npm-global CLI is not needed.
+For a local build, replace the GitHub address with the absolute package path, such as `file:/path/to/dsh-archive-manager-0.2.1.tgz`. A separate npm-global CLI is not needed.
 
 Reopen Desktop and go to **Settings > Archived chats**. Use `--profile desktop` for updates and removal too, and fully quit the app first. To uninstall, run `dsh plugin --profile desktop remove dsh-archive-manager`; chat data is retained.
 

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, rm, access, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, rm, access, writeFile, symlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
@@ -136,6 +136,7 @@ test('Workspace archive and restore retain project and previously archived membe
   }
   let current = workspace
   service.registry.get = () => current
+  service.registry.delete = async () => { current = undefined }
   service.registry.create = async () => { current = { ...workspace, sessionIds: [] }; return current }
   service.registry.state.workspaceIds = [workspace.id]
   service.registry.state.archivedSessionIds = [priorId]
@@ -164,4 +165,186 @@ test('Empty-shell cleanup keeps pinned chats and compressed conversation content
   const result = await service.pruneEmptyUngroupedSessions()
   assert.deepEqual(result.deletedSessionIds, [emptyId])
   assert.deepEqual((await persistence.list()).map((item) => item.header.id).sort(), [id, pinnedId].sort())
+})
+
+test('Unarchive does not overwrite a concurrent archive from another caller', async (t) => {
+  const { service, id } = await fixture(t)
+  await service.archiveSession({ sessionId: id })
+  service.restoreWorkspaceForSession = async () => {
+    service.registry.state.archivedSessionIds.push('session-concurrent')
+    return { workspaceMissing: false, restoredSessionIds: [id] }
+  }
+  await service.unarchive({ sessionId: id })
+  assert.deepEqual(service.registry.archivedSessionIds, ['session-concurrent'])
+})
+
+test('Startup cleanup preserves unreadable archived sessions and empty workspace snapshots', async (t) => {
+  const { service, id } = await fixture(t)
+  const records = new Map([['workspace-empty', { workspaceId: 'workspace-empty', sessionIds: [], preArchivedSessionIds: [] }]])
+  records.put = async (key, value) => records.set(key, value)
+  service.workspaceTable = records
+  service.registry.state.archivedSessionIds = [id, 'session-unreadable']
+  await service.pruneArchivedWorkspaceSnapshots()
+  assert.deepEqual(service.registry.archivedSessionIds, [id, 'session-unreadable'])
+  assert.equal(records.has('workspace-empty'), true)
+})
+
+test('Restore to a new directory honors the target even if the old workspace is still registered', async (t) => {
+  const { root, service, id } = await fixture(t)
+  let oldAttached = false
+  const old = { id: 'workspace-old', path: root, title: 'old', async attachSession() { oldAttached = true } }
+  const target = await mkdtemp(join(tmpdir(), 'dsh-archive-target-'))
+  t.after(() => rm(target, { recursive: true, force: true }))
+  service.registry.get = () => old
+  service.registry.create = async (path) => ({ id: 'workspace-new', path, title: 'new', async mutate(fn) { fn({ sessionIds: [] }) } })
+  service.registry.sessionPaths = new Map([[id, root]])
+  const restored = await service.restoreWorkspaceSnapshot({ workspaceId: old.id, path: root, title: 'old', sessionIds: [id] }, undefined, target)
+  assert.equal(restored.workspacePath, target)
+  assert.equal(restored.workspaceRelocated, true)
+  assert.equal(oldAttached, false)
+})
+
+test('Deletion refuses backend locations outside the configured session root', async (t) => {
+  const { service, id } = await fixture(t)
+  const outside = await mkdtemp(join(tmpdir(), 'dsh-archive-outside-'))
+  t.after(() => rm(outside, { recursive: true, force: true }))
+  const path = join(outside, 'session.jsonl')
+  await writeFile(path, 'must remain')
+  service.findSessionDirectory = async () => undefined
+  service.resolveSessionLog = async () => ({ kind: 'jsonl', path })
+  await assert.rejects(service.prepareDelete(id), { code: 'unsafe-session-path' })
+  await access(path)
+})
+
+test('Empty-shell deletion rechecks content after acquiring the writer lease', async (t) => {
+  const { root, persistence, service } = await fixture(t)
+  const id = 'session-growing-shell'
+  let handle = await persistence.create({ id, cwd: root, version: 4, isSeeded: false, createdAt: Date.now() })
+  await handle.flush(); await handle.close()
+  const prepared = await service.prepareDelete(id, { allowEmpty: true })
+  handle = await persistence.open(id, 'write')
+  await handle.append([{ type: 'user/message', surfaceOp: 'append', seq: 0, time: Date.now(), data: { id: 'message-new', role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: 'must remain' }] } }])
+  await handle.flush(); await handle.close()
+  await assert.rejects(service.removePrepared(prepared), { code: 'session-not-empty' })
+  await access(prepared.path)
+})
+
+test('Explicit empty bulk-delete selection never expands to all archived sessions', async (t) => {
+  const { service, id, persistence } = await fixture(t)
+  await service.archiveSession({ sessionId: id })
+  const result = await service.deleteMany({ sessionIds: [] })
+  assert.deepEqual(result.deletedSessionIds, [])
+  assert.equal((await persistence.list()).length, 1)
+})
+
+test('Workspace archive completes host removal and is safe to retry', async (t) => {
+  const { service, root, id } = await fixture(t)
+  const records = new Map()
+  records.put = async (key, value) => records.set(key, value)
+  service.workspaceTable = records
+  service.requireWorkspaceTable = async () => records
+  let workspace = { id: 'project', path: root, title: 'Project', sessionIds: [id] }
+  service.registry.get = () => workspace
+  service.registry.state.workspaceIds = ['project']
+  let deletes = 0
+  service.registry.delete = async () => { deletes++; workspace = undefined }
+  await service.archiveWorkspace({ workspaceId: 'project' })
+  await service.archiveWorkspace({ workspaceId: 'project' })
+  assert.equal(deletes, 1)
+  assert.equal(records.size, 1)
+  assert.deepEqual(service.registry.archivedSessionIds, [id])
+})
+
+test('Failed workspace removal restores pins and previously archived membership', async (t) => {
+  const { service, root, id } = await fixture(t)
+  const records = new Map()
+  records.put = async (key, value) => records.set(key, value)
+  service.workspaceTable = records
+  service.requireWorkspaceTable = async () => records
+  service.registry.get = () => ({ id: 'project', path: root, title: 'Project', sessionIds: [id, 'previous'] })
+  service.registry.state.workspaceIds = ['project']
+  service.registry.state.archivedSessionIds = ['previous']
+  service.registry.state.pinnedSessionIds = [id, 'unrelated']
+  service.registry.delete = async () => { throw new Error('storage unavailable') }
+  await assert.rejects(service.archiveWorkspace({ workspaceId: 'project' }), /storage unavailable/)
+  assert.deepEqual(service.registry.archivedSessionIds, ['previous'])
+  assert.deepEqual(service.registry.state.pinnedSessionIds.sort(), [id, 'unrelated'].sort())
+  assert.equal(records.size, 0)
+})
+
+test('Deleted files with an index write failure report partial deletion and support retry', async (t) => {
+  const { service, persistence, id } = await fixture(t)
+  await service.archiveSession({ sessionId: id })
+  const original = service.registry.setState
+  service.registry.setState = async () => { throw new Error('storage unavailable') }
+  await assert.rejects(service.delete({ sessionId: id }), { code: 'delete-cleanup-incomplete' })
+  assert.equal((await persistence.list()).length, 0)
+  assert.deepEqual(service.registry.archivedSessionIds, [id])
+  service.registry.setState = original
+  const answer = await service.delete({ sessionId: id })
+  assert.deepEqual(answer.deletedSessionIds, [id])
+  assert.deepEqual(service.registry.archivedSessionIds, [])
+})
+
+test('Large session histories retain their title and timestamps', async (t) => {
+  const { service, id } = await fixture(t)
+  service.registry.state.archivedSessionIds = [id]
+  const events = Array.from({ length: 180000 }, (_, time) => ({ type: 'session/title', data: { title: 'Long history' }, time }))
+  service.persistence = {
+    list: async () => [{ header: { id, createdAt: 1 } }],
+    open: async () => ({ header: { id, createdAt: 1 }, read: async () => ({ events }), close: async () => {} }),
+  }
+  const answer = await service.archives()
+  assert.equal(answer.archivedSessions[0].title, 'Long history')
+  assert.equal(answer.archivedSessions[0].updatedAt, 179999)
+})
+
+test('Session cleanup refuses paths that escape through a symlink', async (t) => {
+  const { service, root, id } = await fixture(t)
+  const outside = await mkdtemp(join(tmpdir(), 'dsh-archive-symlink-'))
+  t.after(() => rm(outside, { recursive: true, force: true }))
+  await mkdir(join(outside, id))
+  await symlink(outside, join(root, 'linked-parent'))
+  await assert.rejects(service.assertSafeSessionDirectory(join(root, 'linked-parent', id), id), { code: 'unsafe-session-path' })
+  await access(join(outside, id))
+})
+
+test('Disposal prevents scheduled and queued maintenance from deleting files', async (t) => {
+  const { service, root, persistence } = await fixture(t)
+  const id = 'session-empty-disposal'
+  const handle = await persistence.create({ id, cwd: root, version: 4, isSeeded: false, createdAt: Date.now() })
+  await handle.flush(); await handle.close()
+  const prepared = await service.prepareDelete(id, { allowEmpty: true })
+  let ran = false
+  service.scheduleMaintenance(() => { ran = true }, 5)
+  service.disposed = true
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  assert.equal(ran, false)
+  assert.equal(service.maintenanceTimers.size, 0)
+  await assert.rejects(service.removePrepared(prepared), { code: 'archive-service-unavailable' })
+  await access(prepared.path)
+})
+
+test('Archive metadata reads have bounded concurrency and retain list order', async (t) => {
+  const { service } = await fixture(t)
+  const ids = Array.from({ length: 16 }, (_, index) => `session-${index}`)
+  service.registry.state.archivedSessionIds = ids
+  let active = 0
+  let maximum = 0
+  service.persistence = {
+    list: async () => ids.map((id) => ({ header: { id, createdAt: 1 } })),
+    open: async (id) => {
+      active++
+      maximum = Math.max(maximum, active)
+      return {
+        header: { id, createdAt: 1 },
+        read: async () => { await new Promise((resolve) => setTimeout(resolve, 2)); return { events: [] } },
+        close: async () => { active-- },
+      }
+    },
+  }
+  const answer = await service.archives()
+  assert.equal(maximum, 4)
+  assert.equal(active, 0)
+  assert.deepEqual(answer.archivedSessions.map((item) => item.id), ids)
 })

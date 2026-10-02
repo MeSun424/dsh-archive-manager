@@ -1,5 +1,6 @@
 import React from 'react'
 import TYPERT_REMOTE from '../lib/typert.remote-client.js'
+import { buildArchiveGroups, groupSessionIds } from './archive-view.js'
 
 const CSS_ID = 'dsh-archive-manager/client'
 const ARCHIVE_ICON_PATH = 'M15.8659 2.05975C17.2603 2.05995 18.3913 3.19096 18.3914 4.58527V5.4874C18.3914 6.02747 18.2192 6.52672 17.9303 6.93735C17.9336 6.96524 17.9388 6.99318 17.9388 7.02195V12.8884C17.9388 13.6345 17.9395 14.2379 17.8996 14.7254C17.8642 15.1593 17.7936 15.5499 17.6373 15.9141L17.5654 16.0685C17.278 16.6328 16.8405 17.1046 16.3038 17.434L16.0679 17.5661C15.66 17.7739 15.2196 17.8598 14.7237 17.9003C14.2362 17.9401 13.6327 17.9405 12.8867 17.9405H7.11122C6.36511 17.9405 5.76171 17.9401 5.27418 17.9003C4.84051 17.8649 4.44949 17.7952 4.08545 17.6391L3.93104 17.5661C3.36673 17.2785 2.89392 16.8414 2.56465 16.3044L2.43245 16.0685C2.22473 15.6608 2.13878 15.2211 2.09825 14.7254C2.05841 14.2379 2.05912 13.6345 2.05912 12.8884V7.02195C2.05912 6.99284 2.06422 6.96449 2.06758 6.93629C1.77931 6.52592 1.60858 6.02687 1.60858 5.4874V4.58527C1.60876 3.19084 2.73962 2.05975 4.1341 2.05975H15.8659ZM16.4984 7.92936C16.296 7.98169 16.0847 8.01288 15.8659 8.01291H4.1341C3.91478 8.01291 3.70246 7.98194 3.49955 7.92936V12.8884C3.49955 13.6582 3.50053 14.1927 3.53445 14.608C3.56769 15.0146 3.62923 15.244 3.71635 15.415L3.7925 15.5514C3.98339 15.8627 4.25749 16.1165 4.58464 16.2833L4.72529 16.3435C4.88095 16.3993 5.08638 16.4402 5.39158 16.4651C5.80685 16.4991 6.34138 16.5001 7.11122 16.5001H12.8867C13.6564 16.5001 14.1911 16.499 14.6063 16.4651C15.0128 16.432 15.2423 16.3703 15.4133 16.2833L15.5508 16.2061C15.8618 16.0152 16.116 15.7419 16.2827 15.415L16.3429 15.2732C16.3985 15.1177 16.4396 14.9128 16.4645 14.608C16.4985 14.1927 16.4984 13.6583 16.4984 12.8884V7.92936ZM4.1341 3.50019C3.53511 3.50019 3.0492 3.98631 3.04902 4.58527V5.4874C3.04902 6.08649 3.535 6.57248 4.1341 6.57248H15.8659C16.4648 6.57228 16.951 6.08638 16.951 5.4874V4.58527C16.9509 3.98644 16.4647 3.50038 15.8659 3.50019H4.1341Z'
@@ -164,12 +165,13 @@ const css = `
 `
 
 function installStyles() {
-  if (document.querySelector(`style[data-plugin-css="${CSS_ID}"]`) !== null) return
+  if (document.querySelector(`style[data-plugin-css="${CSS_ID}"]`) !== null) return () => {}
   const style = document.createElement('style')
   style.dataset.plugin = 'dsh-archive-manager'
   style.dataset.pluginCss = CSS_ID
   style.textContent = css
   document.head.appendChild(style)
+  return () => style.remove()
 }
 
 function createArchiveNavIcon() {
@@ -241,6 +243,12 @@ function installSettingsRootObserver({ scan, onMutation, characterData = false }
   for (const root of document.querySelectorAll(SETTINGS_ROOT_SELECTOR)) attach(root)
 
   const bodyObserver = body === null ? null : new MutationObserver((records) => {
+    for (const [root, observer] of rootObservers) {
+      if (root.isConnected) continue
+      observer.disconnect()
+      rootObservers.delete(root)
+      roots.delete(root)
+    }
     for (const record of records) {
       for (const node of record.addedNodes) collect(node, true)
     }
@@ -258,6 +266,7 @@ function installSettingsRootObserver({ scan, onMutation, characterData = false }
 }
 
 function installArchiveNavIcon() {
+  const originals = new Map()
   const replaceButton = (button) => {
     if (!(button instanceof Element)) return
     const label = button.matches('.VOzbGW_navCell')
@@ -266,7 +275,9 @@ function installArchiveNavIcon() {
     if (label?.textContent?.trim() !== '已归档聊天' && button.textContent?.trim() !== '已归档聊天') return
     const icon = button?.querySelector('svg')
     if (icon === null || icon === undefined || icon.dataset.damArchiveIcon === 'true') return
-    icon.replaceWith(createArchiveNavIcon())
+    const replacement = createArchiveNavIcon()
+    originals.set(replacement, icon)
+    icon.replaceWith(replacement)
   }
 
   const scan = (root) => {
@@ -283,11 +294,14 @@ function installArchiveNavIcon() {
     },
   })
   const timer = window.setInterval(() => {
-    for (const button of document.querySelectorAll('.VOzbGW_navCell, button,[role="button"]')) replaceButton(button)
+    for (const root of document.querySelectorAll(SETTINGS_ROOT_SELECTOR)) scan(root)
+    for (const node of originals.keys()) if (!node.isConnected) originals.delete(node)
   }, 400)
   return () => {
     window.clearInterval(timer)
     cleanupObserver()
+    for (const [node, original] of originals) if (node.isConnected) node.replaceWith(original)
+    originals.clear()
   }
 }
 
@@ -319,8 +333,9 @@ function installWorkspaceArchiveCopy() {
     if (value !== '删除工作区' && value !== '归档工作区' && value !== '正在删除工作区…' && value !== '正在归档工作区…' && value !== 'Delete workspace' && value !== 'Archive workspace' && value !== 'Deleting workspace…' && value !== 'Archiving workspace…') return
     const icon = item.querySelector('svg')
     if (icon === null || icon.dataset.damArchiveIcon === 'true') return
-    if (!originalIcons.has(icon)) originalIcons.set(icon, icon.cloneNode(true))
-    icon.replaceWith(createArchiveNavIcon())
+    const replacement = createArchiveNavIcon()
+    originalIcons.set(replacement, icon)
+    icon.replaceWith(replacement)
   }
   const scan = (root) => {
     if (root.nodeType === Node.TEXT_NODE) return replaceText(root)
@@ -341,15 +356,18 @@ function installWorkspaceArchiveCopy() {
   })
   const timer = window.setInterval(() => {
     for (const menu of document.querySelectorAll('[role="menu"]')) scan(menu)
+    for (const node of originals.keys()) if (!node.isConnected) originals.delete(node)
+    for (const node of originalIcons.keys()) if (!node.isConnected) originalIcons.delete(node)
   }, 250)
   return () => {
     window.clearInterval(timer)
     cleanup()
     for (const [node, value] of originals) if (node.isConnected) node.nodeValue = value
     for (const [node, icon] of originalIcons) {
-      const replacement = node.parentElement?.querySelector('svg[data-dam-archive-icon="true"]')
-      if (replacement !== null && replacement !== undefined) replacement.replaceWith(icon)
+      if (node.isConnected) node.replaceWith(icon)
     }
+    originals.clear()
+    originalIcons.clear()
   }
 }
 
@@ -507,16 +525,7 @@ function ArchiveSection({ useSessions, useWorkspaces, invoke, refresh, pickDirec
     })
   }, [archivedIds, archivedSessionById, chatSort, liveIds, projectBySession, projectFilter, query, sessionState.byId])
 
-  const groups = React.useMemo(() => {
-    const result = new Map()
-    for (const row of rows) {
-      const key = row.projectId
-      const group = result.get(key) ?? { id: key, title: row.projectTitle, missing: row.workspaceMissing, archivedWorkspace: row.workspaceArchived, rows: [] }
-      group.rows.push(row)
-      result.set(key, group)
-    }
-    return [...result.values()]
-  }, [rows])
+  const groups = React.useMemo(() => buildArchiveGroups(rows, snapshots, projectFilter, query), [rows, snapshots, projectFilter, query])
 
   const runAction = async (method, args, id = null) => {
     setBusyId(id ?? 'all')
@@ -524,7 +533,7 @@ function ArchiveSection({ useSessions, useWorkspaces, invoke, refresh, pickDirec
     try {
       const answer = await invoke(method, args)
       if (method === 'restoreWorkspaceAt' && answer.workspaceRelocated) {
-        setNotice('工作区目录已变化。如果原目录中的数据已经丢失，原对话可能无法正常继续。')
+        setNotice('已将聊天归入所选项目。原会话的工作目录和文件不会迁移，继续对话仍可能使用原目录；建议在原目录恢复。')
       }
       if (answer.workspaceMissing) {
         setError(`原工作区路径不存在：${answer.workspacePath}。该项目及会话会继续保留在归档中。`)
@@ -574,12 +583,15 @@ function ArchiveSection({ useSessions, useWorkspaces, invoke, refresh, pickDirec
       copy: `将永久删除全部 ${ids.length} 个已归档聊天及其会话日志。此操作无法撤销。`,
     })
   }
-  const askDeleteGroup = (group) => setConfirm({
-    kind: 'many',
-    ids: group.rows.map((row) => row.id),
-    title: '删除该项目中的所有聊天？',
-    copy: `这将永久删除此项目中的 ${group.rows.length} 条本地已归档聊天`,
-  })
+  const askDeleteGroup = (group) => {
+    const ids = groupSessionIds(group.id, archivedIds, projectBySession)
+    if (ids.length === 0) return
+    setConfirm({
+      kind: 'many', ids,
+      title: '删除该项目中的所有归档聊天？',
+      copy: `这将永久删除此项目中的全部 ${ids.length} 条本地已归档聊天，包括被搜索或筛选隐藏的聊天。此操作无法撤销。`,
+    })
+  }
 
   const restoreGroup = async (group) => {
     if (group.missing && typeof pickDirectory === 'function') {
@@ -672,15 +684,20 @@ function ArchiveSection({ useSessions, useWorkspaces, invoke, refresh, pickDirec
                 React.createElement('button', {
                   type: 'button',
                   role: 'menuitem',
+                  disabled: group.rows.length === 0,
                   onClick: () => {
                     setGroupMenuId(null)
                     askDeleteGroup(group)
                   },
-                }, React.createElement(IconTrashOutline16, { size: 16 }), '删除项目中的全部内容'))
+                }, React.createElement(IconTrashOutline16, { size: 16 }), '删除项目中的全部归档聊天'))
             : null))),
-    React.createElement('div', { className: 'dam-group' }, group.rows.map(renderRow)))
+    group.rows.length === 0
+      ? React.createElement('div', { className: 'dam-empty' }, '空项目，可通过项目菜单恢复')
+      : React.createElement('div', { className: 'dam-group' }, group.rows.map(renderRow)))
 
-  const content = rows.length === 0
+  const content = !archivesLoaded
+    ? React.createElement('div', { className: 'dam-empty', role: 'status' }, '正在读取归档…')
+    : groups.length === 0
     ? React.createElement('div', { className: 'dam-empty' }, archived.size === 0 ? '没有已归档的聊天' : '没有符合筛选条件的聊天')
     : React.createElement(React.Fragment, null, groups.map(renderGroup))
 
@@ -731,7 +748,7 @@ function ArchiveSection({ useSessions, useWorkspaces, invoke, refresh, pickDirec
 export const inject = ['remote', 'connection', 'slots', 'sessions', 'workspaces']
 
 export async function apply(ctx) {
-  installStyles()
+  ctx.effect(() => installStyles(), 'dsh-archive-manager: styles')
   ctx.effect(() => installArchiveNavIcon(), 'dsh-archive-manager: settings archive icon')
   ctx.effect(() => installWorkspaceArchiveCopy(), 'dsh-archive-manager: workspace archive copy')
   const disposeRemote = await ctx.remote.$mount(TYPERT_REMOTE)
@@ -781,18 +798,7 @@ export async function apply(ctx) {
   const archiveWorkspace = async (workspaceId) => {
     const answer = await invoke('archiveWorkspace', { workspaceId: String(workspaceId) })
     syncWorkspaceArchiveProjection(answer)
-    try {
-      await originalDeleteWorkspace.call(ctx.workspaces, workspaceId)
-    } catch (deleteError) {
-      try {
-        const rollback = await invoke('restoreWorkspace', { workspaceId: String(workspaceId) })
-        syncWorkspaceArchiveProjection(rollback)
-        await refreshWorkspaces()
-      } catch (rollbackError) {
-        console.error('dsh-archive-manager: workspace archive rollback failed', rollbackError)
-      }
-      throw deleteError
-    }
+    await refreshWorkspaces()
   }
   const archiveSession = async (sessionId) => {
     const answer = await invoke('archiveSession', { sessionId: String(sessionId) })

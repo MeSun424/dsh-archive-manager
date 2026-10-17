@@ -756,7 +756,13 @@ export async function apply(ctx) {
 
   const invoke = async (method, args) => {
     const answer = await ctx.connection.rpc.call('/api', `archiveManager/${method}`, { args: { request: args } })
-    if (!answer.ok) throw new Error(`${method} failed: ${answer.error.code}: ${answer.error.message}`)
+    if (!answer.ok) {
+      const error = new Error(`${method} failed: ${answer.error.code}: ${answer.error.message}`)
+      // The native archive dialog recognizes this structural error contract.
+      error.name = method === 'archiveSession' ? 'WorkspaceArchiveError' : 'ArchiveManagerError'
+      error.rpcError = answer.error
+      throw error
+    }
     return answer.value
   }
 
@@ -800,8 +806,11 @@ export async function apply(ctx) {
     syncWorkspaceArchiveProjection(answer)
     await refreshWorkspaces()
   }
-  const archiveSession = async (sessionId) => {
-    const answer = await invoke('archiveSession', { sessionId: String(sessionId) })
+  const archiveSession = async (sessionId, options = {}) => {
+    const answer = await invoke('archiveSession', {
+      sessionId: String(sessionId),
+      ...(options.stopActivity === true ? { stopActivity: true } : {}),
+    })
     syncWorkspaceArchiveProjection(answer)
     await refreshWorkspaces()
   }

@@ -20,7 +20,7 @@ The plugin follows the DeepSeek Harness interface and supports light and dark th
 
 | Edition | Supported versions |
 | --- | --- |
-| DeepSeek Harness Desktop | Verified with `0.2.0-rc.2` |
+| DeepSeek Harness Desktop | Verified with `0.2.0-rc.2` and `0.2.1-rc.2` |
 | DeepSeek Harness Web | `0.1.2-alpha.1`, `0.1.2-alpha.2`, `0.1.2-rc.1`, `0.1.5-rc.1` |
 
 Other versions have not been verified. Permanent deletion supports the default local session storage in DeepSeek Harness; it may be unavailable with other storage options.
@@ -57,7 +57,7 @@ Restart DeepSeek Harness Web, then go to **Settings > Archived chats**.
 
 Choose **Archive** from a chat's menu to move it from the regular list into the archive. The chat's content is retained, and its pin is removed.
 
-To use it again, find the chat on the archive page and choose **Unarchive**. If archiving is blocked because tasks are still running, stop those tasks and try again.
+To use it again, find the chat on the archive page and choose **Unarchive**. On Desktop, chats with active tasks prompt you to stop those tasks and archive. Tasks stop only after confirmation; cancelling keeps the chat unchanged. Stop a workspace's tasks before archiving the entire workspace.
 
 ### Archive and restore workspaces
 

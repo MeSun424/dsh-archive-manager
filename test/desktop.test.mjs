@@ -5,15 +5,21 @@ import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import TypertRegistry from '@deepseek-ai/dsh-typert-registry'
-import JsonlPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
+import * as JsonlBackend from '@deepseek-ai/dsh-session-persistence-jsonl'
 import ArchiveManagerService from '../lib/archive-service.js'
 import TYPERT from '../lib/typert.host.js'
 import TYPERT_REMOTE from '../lib/typert.remote-client.js'
 
+async function createBackend(ctx, config) {
+  if (typeof JsonlBackend.default === 'function') return new JsonlBackend.default(ctx, config)
+  await JsonlBackend.apply(ctx, { listConcurrency: 4, ...config })
+  return ctx.sessionPersistence
+}
+
 const fixture = async (t, compression = 'none') => {
   const root = await mkdtemp(join(tmpdir(), 'dsh-archive-desktop-'))
   const ctx = new Context()
-  const persistence = new JsonlPersistence(ctx, { root, compression })
+  const persistence = await createBackend(ctx, { root, compression })
   t.after(async () => { await ctx.fiber.dispose(); await rm(root, { recursive: true, force: true }) })
   const service = Object.create(ArchiveManagerService.prototype)
   Object.assign(service, {
@@ -91,7 +97,7 @@ test('Desktop kernel lease protects another backend owner and can retry after re
   const prepared = await service.prepareDelete(id)
   const otherContext = new Context()
   try {
-    const other = new JsonlPersistence(otherContext, { root, compression: 'none' })
+    const other = await createBackend(otherContext, { root, compression: 'none' })
     const writer = await other.open(id, 'write')
     await assert.rejects(service.removePrepared(prepared), { code: 'session-busy' })
     await access(prepared.path)

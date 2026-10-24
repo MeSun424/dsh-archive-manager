@@ -20,7 +20,7 @@ The plugin follows the DeepSeek Harness interface and supports light and dark th
 
 | Edition | Supported versions |
 | --- | --- |
-| DeepSeek Harness Desktop | Verified with `0.2.0-rc.2` and `0.2.1-rc.2` |
+| DeepSeek Harness Desktop | Verified with `0.2.0-rc.2` and `0.2.1-rc.2`; runtime compatibility tests pass on `0.2.1-rc.3` |
 | DeepSeek Harness Web | `0.1.2-alpha.1`, `0.1.2-alpha.2`, `0.1.2-rc.1`, `0.1.5-rc.1` |
 
 Other versions have not been verified. Permanent deletion supports the default local session storage in DeepSeek Harness; it may be unavailable with other storage options.

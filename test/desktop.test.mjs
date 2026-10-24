@@ -305,6 +305,64 @@ test('Large session histories retain their title and timestamps', async (t) => {
   assert.equal(answer.archivedSessions[0].updatedAt, 179999)
 })
 
+test('Archive display expands a native fallback prefix without renaming the stored session', async (t) => {
+  const { service, id } = await fixture(t)
+  const prompt = '用svg画一个鹈鹕骑车，最后输出到桌面给我查看'
+  const title = '用svg画一个鹈鹕骑车，最后输'
+  const events = [
+    { type: 'user/message', seq: 0, data: { source: { kind: 'system' }, content: [{ type: 'text', text: 'Setup text' }] } },
+    { type: 'user/message', seq: 1, data: { source: { kind: 'user' }, content: [{ type: 'text', text: 'Earlier unrelated message' }] } },
+    { type: 'user/message', seq: 8, data: { source: { kind: 'user' }, content: [{ type: 'text', text: prompt }] } },
+    { type: 'session/title', seq: 9, data: { title, source: { kind: 'fallback' }, messageSeqs: [8] } },
+  ]
+  const before = JSON.stringify(events)
+  service.registry.state.archivedSessionIds = [id]
+  service.persistence = {
+    list: async () => [{ header: { id } }],
+    open: async () => ({ header: { id }, read: async () => ({ events }), close: async () => {} }),
+  }
+  const { archivedSessions: [session] } = await service.archives()
+  assert.equal(session.title, title)
+  assert.equal(session.displayTitle, prompt)
+  assert.equal(JSON.stringify(events), before)
+})
+
+test('Archive display preserves custom and provider titles and unrelated fallback text', async (t) => {
+  const { service, id } = await fixture(t)
+  service.registry.state.archivedSessionIds = [id]
+  for (const source of [{ kind: 'user' }, { kind: 'provider' }, undefined, { kind: 'fallback' }]) {
+    const title = source?.kind === 'fallback' ? 'Unrelated title' : 'Chosen name'
+    service.persistence = {
+      list: async () => [{ header: { id } }],
+      open: async () => ({ header: { id }, read: async () => ({ events: [
+        { type: 'user/message', seq: 0, data: { content: [{ type: 'text', text: 'Chosen name followed by a much longer prompt' }] } },
+        { type: 'session/title', data: { title, source, messageSeqs: [0] } },
+      ] }), close: async () => {} }),
+    }
+    const { archivedSessions: [session] } = await service.archives()
+    assert.equal(session.title, title)
+    assert.equal(session.displayTitle, title)
+  }
+})
+
+test('Message-derived archive titles mark preview limits without splitting Unicode characters', async (t) => {
+  const { service, id } = await fixture(t)
+  service.registry.state.archivedSessionIds = [id]
+  for (const size of [120, 240, 241, 1000]) {
+    const prompt = '🦢'.repeat(size)
+    service.persistence = {
+      list: async () => [{ header: { id } }],
+      open: async () => ({ header: { id }, read: async () => ({ events: [
+        { type: 'user/message', data: { content: [{ type: 'text', text: prompt }] } },
+      ] }), close: async () => {} }),
+    }
+    const { archivedSessions: [session] } = await service.archives()
+    assert.equal(session.displayTitle, '🦢'.repeat(Math.min(size, 240)) + (size > 240 ? '…' : ''))
+    assert.equal(session.title, session.displayTitle)
+    assert.equal(session.displayTitle.isWellFormed(), true)
+  }
+})
+
 test('Session cleanup refuses paths that escape through a symlink', async (t) => {
   const { service, root, id } = await fixture(t)
   const outside = await mkdtemp(join(tmpdir(), 'dsh-archive-symlink-'))

@@ -1,6 +1,6 @@
 {
   "name": "dsh-archive-manager",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Archive browsing, restore, and safe permanent deletion for DeepSeek Harness Desktop and Web.",
   "type": "module",
   "main": "lib/service-plugin.js",
@@ -35,11 +35,11 @@
   ],
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-agent": "^0.1.2-alpha.1 || ^0.1.5-rc.1 || 0.2.0-rc.2 || 0.2.1-rc.2 || 0.2.1-rc.3",
-    "@deepseek-ai/dsh-session-persistence": "^0.1.2-alpha.1 || ^0.1.5-rc.1 || 0.2.0-rc.2 || 0.2.1-rc.2 || 0.2.1-rc.3",
-    "@deepseek-ai/dsh-storage-domain": "^0.1.2-alpha.1 || ^0.1.5-rc.1 || 0.2.0-rc.2 || 0.2.1-rc.2 || 0.2.1-rc.3",
-    "@deepseek-ai/dsh-typert-protocol": "^0.1.2-alpha.1 || ^0.1.5-rc.1 || 0.2.0-rc.2 || 0.2.1-rc.2 || 0.2.1-rc.3",
-    "@deepseek-ai/dsh-workspace": "^0.1.2-alpha.1 || ^0.1.5-rc.1 || 0.2.0-rc.2 || 0.2.1-rc.2 || 0.2.1-rc.3",
+    "@deepseek-ai/dsh-agent": "^0.1.2-alpha.1 || ^0.1.5-rc.1 || 0.2.0-rc.2 || 0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.5",
+    "@deepseek-ai/dsh-session-persistence": "^0.1.2-alpha.1 || ^0.1.5-rc.1 || 0.2.0-rc.2 || 0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.5",
+    "@deepseek-ai/dsh-storage-domain": "^0.1.2-alpha.1 || ^0.1.5-rc.1 || 0.2.0-rc.2 || 0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.5",
+    "@deepseek-ai/dsh-typert-protocol": "^0.1.2-alpha.1 || ^0.1.5-rc.1 || 0.2.0-rc.2 || 0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.5",
+    "@deepseek-ai/dsh-workspace": "^0.1.2-alpha.1 || ^0.1.5-rc.1 || 0.2.0-rc.2 || 0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.5",
     "react": "^18.2.0",
     "zod": "^4.0.0"
   },
@@ -62,7 +62,7 @@
   },
   "license": "MIT",
   "devDependencies": {
-    "@deepseek-ai/dsh-typert-registry": "0.2.1-rc.3",
-    "@deepseek-ai/dsh-session-persistence-jsonl": "0.2.1-rc.3"
+    "@deepseek-ai/dsh-typert-registry": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-session-persistence-jsonl": "0.2.1-rc.5"
   }
 }
